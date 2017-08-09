@@ -66,6 +66,64 @@ def assign_node_to_contract(node_id, contract_id, share=None, start_date=None, e
 
         }
     )
+
     sess.close()
 
-assign_node_to_contract(node_id="compute-0-15", contract_id="hpc_bancarizada", share="100%", start_date=20170701)
+def segmentBroken(relationship):
+    #TODO: Change this to the correct property analysis
+    return False;
+def extractNormalizedShareFromRelationShips(relationship):
+    if (segmentBroken(relationship)):
+        return 0
+    if ("share" in relationship.properties):
+        return float(relationship.properties["share"].strip ("%")) / 100
+    else:
+        return 1
+
+def calculatePathWeight(path):
+    relationships = path.relationships
+    shares = map (extractNormalizedShareFromRelationShips, relationships)
+    factor = reduce(lambda fac,share: fac * share, shares,1.0)
+    return factor
+
+def get_available_capacity_for_contract(contract_id=None,uri=None):
+    # Each contract contains one or more paths to the resources connected directly or indirectly to it.(i.e. a path connect a single
+    # contract to a single resource)
+    # Each path has a weight calculated as the product of the attribute "share" corresponding to
+    # each segment forming the path. If the path is broken at one of its segments (i.e. the segment is inactive, dued, etc.),
+    # then that segment's weight will be set to 0 and therefore the entire path's capacity will become 0.
+    # The path's capacity represents how much capacity is drained from a node/resource to the linked contract via this path, and it is calculated
+    # as the node's capacity times the path's capacity (which is always a number between 0 and 1).
+
+
+    if (uri == None and contract_id == None):
+        raise Exception("Must specify at least one contract identification (id or uri)")
+
+    #MATCH (c:CONTRACT{id:"hpc_bancarizada"}) MATCH (n:HPCNODE)  RETURN (c)-[*..1]->(n);
+    sess = driver.session()
+    result = sess.run(
+        "MATCH (c:CONTRACT{id:{pcontract_id},uri:{puri}}) MATCH (n:HPCNODE)  RETURN (c)-[*..6]->(n)",
+        {
+            "pcontract_id": contract_id,
+            "uri": uri
+        }
+    )
+    data = result.data()
+    sess.close()
+    #for pathentry in data[0].values():
+
+    contractcapacity = 0.0
+    for pathentry in data:
+        if not (pathentry.values() == [[]]) > 0:
+            path= pathentry.values()[0][0]
+            weight = calculatePathWeight(path)
+            resource = path.end
+            capacity = resource.properties["capacity"]
+            pathcapacity = capacity * weight
+            contractcapacity+=pathcapacity
+
+    return contractcapacity
+
+#assign_node_to_contract(node_id="compute-0-8", contract_id="hpc_bancarizada", share="50%", start_date=20170701)
+print get_available_capacity_for_contract("hpc_bancarizada")
+
