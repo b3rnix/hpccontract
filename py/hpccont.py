@@ -1,3 +1,6 @@
+#!/home/berna/anaconda2/bin/python
+
+
 import argparse
 import sys
 from dbsession import *
@@ -125,10 +128,15 @@ def get_parser(main_command):
 
 ### Main program ###
 
+valid_commands = ['createhpcnode','createentity','createhpccontract','assignnodetocontract', 'assignsubcontract', 'assigncontractadministrator', 'assigncontractowner']
+
+if len(sys.argv) < 2:
+    print "Must specify a command. Valid commands: ", valid_commands
+    exit(1)
+	
 main_command = sys.argv[1]
 sys.argv.remove(main_command)
 
-valid_commands = ['createhpcnode','createentity','createhpccontract','assignnodetocontract', 'assignsubcontract', 'assigncontractadministrator', 'assigncontractowner']
 if main_command not in valid_commands:
     print "Invalid command (case sensitive): ", main_command, 'Valid commands are', valid_commands
     exit(1)
