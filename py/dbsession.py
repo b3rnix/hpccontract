@@ -44,16 +44,67 @@ def create_hpc_node(cluster, node_id, host_name, capacity):
 
 
     sess.run(
-            "CREATE (:HPCNODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity}})",
+            "CREATE (:HPCNODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})",
             {
                 "pcluster": cluster,
                 "pid": node_id,
                 "phost_name": host_name,
-                "pcapacity": capacity
+                "pcapacity": capacity,
+                "puri": "slurm://c:{0}/n:{1}".format(cluster,node_id)
              }
              )
 
     sess.close()
+
+def create_nas_node(cluster, node_id, host_name, capacity):
+    sess = driver.session()
+    result = sess.run("MATCH (n:NASNODE) WHERE n.id = {id} "
+                           "RETURN count(*)",
+                           {"id": node_id})
+
+    if (result.peek()["count(*)"] > 0):
+        raise Exception("Node already exists")
+
+
+    sess.run(
+            "CREATE (:NASNODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})",
+            {
+                "pcluster": cluster,
+                "pid": node_id,
+                "phost_name": host_name,
+                "pcapacity": capacity,
+                "puri": "nas://c:{0}/n:{1}".format(cluster,node_id)
+             }
+             )
+
+    sess.close()
+
+
+def create_nas_contract(id, description, uri, start_date=None, end_date=None, active=True):
+    sess = driver.session()
+    result = sess.run("MATCH (n:CONTRACT:NAS) WHERE n.id = {id} "
+                           "RETURN count(*)",
+                           {"id": id})
+
+    if (result.peek()["count(*)"] > 0):
+        raise Exception("Contract already exists")
+
+
+    sess.run(
+            "CREATE (:CONTRACT:NAS{id:{pid}, description:{pdescription}, start_date:{pstart_date}, end_date:{pend_date}, uri:{puri}, active:{pactive}})",
+            {
+                "pid": id,
+                "pdescription": description,
+                "pstart_date": start_date,
+                "pend_date": end_date,
+                "puri": uri,
+                "pactive": active
+             }
+             )
+
+    sess.close()
+
+
 
 
 def create_entity(entity_id, entity_name, entity_type):
@@ -167,6 +218,74 @@ def assign_contract_owner(contract_id, entity_id, entity_type):
 
         }
     )
+
+    sess.close()
+
+
+def assign_contract_user(contract_id, entity_id, start_date=None, end_date=None, active=True):
+    sess = driver.session()
+    sess.run(
+        "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (p:" + "USER" + ") WHERE p.id = {pentity_id} CREATE (p)-[:USES{start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(c)",
+        {
+            "pcontract_id": contract_id,
+            "pentity_id": entity_id,
+            "pstart_date": start_date,
+            "pend_date": end_date,
+            "pactive": active
+
+
+        }
+    )
+
+    sess.close()
+
+
+
+#Creates a USES relationship so origin_contract gives resources to dst_contract.   (destination_contract)-[USES]->(origin_contract)
+def link_contracts_by_use(origin_contract_id, destination_contract_id, share=None, start_date=None, end_date=None, active=True):
+    get_contract(origin_contract_id)
+    get_contract(destination_contract_id)
+    sess = driver.session()
+    sess.run(
+        "MATCH (p:CONTRACT) WHERE p.contract_id = {porigincontract_id} MATCH (c:CONTRACT) WHERE c.contract_id = {pdestinationcontract_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(p)",
+        {
+            "porigincontract_id": origin_contract_id,
+            "pdestinationcontract_id": destination_contract_id,
+            "pshare": share,
+            "pstart_date": start_date,
+            "pend_date": end_date,
+            "pactive": active
+
+        }
+    )
+
+    sess.close()
+
+
+
+def update_contract(id, **kwargs):
+    sess = driver.session()
+    result = sess.run("MATCH (n:CONTRACT) WHERE n.id = {id} "
+                           "RETURN count(*)",
+                           {"id": id})
+    sess.close()
+    if (result.peek()["count(*)"] == 0):
+        raise Exception("Contract does not exist.")
+
+    update_node(id, kwargs)
+
+def update_node(id, kwargs):
+    sess = driver.session()
+
+    set_keys = map(lambda k: "SET n." + k + "={p" + k + "}" if not kwargs[k] is None else "", kwargs.keys())
+    set_values = {}
+    set_values["id"] = id
+    for k in kwargs:
+        if not kwargs[k] is None:
+            set_values["p"+k] = kwargs[k]
+
+    sess.run(
+            "MATCH (n) WHERE n.id = {id} " + " ".join(set_keys), set_values)
 
     sess.close()
 
@@ -291,4 +410,7 @@ def generate_slurm_credits_command(contract_id, days):
 #generate_slurm_credits_command("hpcreactores", 30)
 
 #create_hpc_node("neurus", "compute-2-15", "compute-2-15", 24)
-assign_node_to_contract(node_id="compute-2-15", contract_id="gpuresearch", share="100%", start_date=20170701)
+#assign_node_to_contract(node_id="compute-2-15", contract_id="gpuresearch", share="100%", start_date=20170701)
+
+
+update_contract("hpc_bancarizada", start_date= 20180101)

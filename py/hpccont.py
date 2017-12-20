@@ -34,6 +34,21 @@ def get_create_hpc_contract_parser():
 
     return parser
 
+
+def get_update_contract_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("contractid", type = str, help = 'Contract id')
+    parser.add_argument("--description", type = str, help = 'Descriptive name', default=None)
+    parser.add_argument("--uri", type = str, help = 'Contract\'s URI', default=None)
+    parser.add_argument("--startdate", type = int, help = 'Date the contract is valid from', default=None)
+    parser.add_argument("--enddate", type = int, help = 'Contract\'s due date', default=None)
+    parser.add_argument("--active", type = bool, help = 'True/False. Defaults to True. Weather the contract is active', default=None)
+
+
+    return parser
+
+
+
 def get_assign_node_to_contract_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("nodeid", type = str, help = 'Unique id of the node within the cluster')
@@ -58,10 +73,35 @@ def get_assign_sub_contract_parser():
 
     return parser
 
+
+def get_link_contracts_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("srccontractid", type = str, help = 'The contract that gives resources')
+    parser.add_argument("dstcontractid", type = str, help = 'The contract that receives resources')
+    parser.add_argument("share", type = str, help = 'Resources transfered from the source contract to the destination contract. The only values currently supported are percentages (a string like 20%)')
+    parser.add_argument("--startdate", type = int, help = 'Date the link is valid from', default=None)
+    parser.add_argument("--enddate", type = int, help = 'Link\'s due date', default=None)
+    parser.add_argument("--active", type = bool, help = 'True/False. Defaults to True. Weather the link is active', default=True)
+
+
+    return parser
+
+
 def get_assign_contract_administrator_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("contractid", type = str, help = 'Administered contract')
     parser.add_argument("entityid", type = str, help = 'Entity who administers the contract')
+    parser.add_argument("--startdate", type = int, help = 'Date the link is valid from', default=None)
+    parser.add_argument("--enddate", type = int, help = 'Link\'s due date', default=None)
+    parser.add_argument("--active", type = bool, help = 'True/False. Defaults to True. Weather the link is active', default=True)
+
+
+    return parser
+
+def get_assign_contract_user():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("contractid", type = str, help = 'Administered contract')
+    parser.add_argument("userid", type = str, help = 'Entity who becomes user of the specified contract')
     parser.add_argument("--startdate", type = int, help = 'Date the link is valid from', default=None)
     parser.add_argument("--enddate", type = int, help = 'Link\'s due date', default=None)
     parser.add_argument("--active", type = bool, help = 'True/False. Defaults to True. Weather the link is active', default=True)
@@ -85,6 +125,9 @@ parser_builders['assignnodetocontract'] = get_assign_node_to_contract_parser
 parser_builders['assignsubcontract'] = get_assign_sub_contract_parser
 parser_builders['assigncontractadministrator'] = get_assign_contract_administrator_parser
 parser_builders['assigncontractowner'] = get_assign_contract_owner_parser
+parser_builders['updatecontract'] = get_update_contract_parser
+parser_builders['linkcontracts'] = get_link_contracts_parser
+parser_builders['assignuser2contract'] = get_assign_contract_user
 
 
 
@@ -111,6 +154,17 @@ def exec_assign_contract_administrator(args):
 def exec_assign_contract_owner(args):
     assign_contract_owner(args.contractid, args.entityid, args.startdate, args.enddate, args.active)
 
+def exec_update_contract(args):
+    update_contract(id=args.contractid, description=args.description, uri=args.uri, start_date=args.startdate, end_date=args.enddate, active=args.active )
+
+def exec_link_contracts(args):
+    link_contracts_by_use(origin_contract_id=args.srccontractid, destination_contract_id=args.destinationcontractid, share=args.share, start_date=args.startdate, end_date=args.enddate, active=args.active)
+
+
+def exec_assign_contract_user(args):
+    assign_contract_user(args.contractid, args.userid, args.startdate, args.enddate, args.active)
+
+
 
 command_funcs = {}
 
@@ -121,6 +175,9 @@ command_funcs['assignnodetocontract'] = exec_assign_node_to_contract
 command_funcs['assignsubcontract'] = exec_assign_sub_contract
 command_funcs['assigncontractadministrator'] = exec_assign_contract_administrator
 command_funcs['assigncontractowner'] = exec_assign_contract_owner
+command_funcs['updatecontract'] = exec_update_contract
+command_funcs['linkcontracts'] = exec_link_contracts
+command_funcs['assignuser2contract'] = exec_assign_contract_user
 
 
 def get_parser(main_command):
@@ -128,7 +185,7 @@ def get_parser(main_command):
 
 ### Main program ###
 
-valid_commands = ['createhpcnode','createentity','createhpccontract','assignnodetocontract', 'assignsubcontract', 'assigncontractadministrator', 'assigncontractowner']
+valid_commands = command_funcs.keys()
 
 if len(sys.argv) < 2:
     print "Must specify a command. Valid commands: ", valid_commands
