@@ -1,3 +1,4 @@
+import datetime
 from neo4j.v1 import GraphDatabase, basic_auth
 import re
 
@@ -290,9 +291,15 @@ def update_node(id, kwargs):
     sess.close()
 
 
-def segmentBroken(relationship):
-    #TODO: Change this to the correct property analysis
-    return False;
+def segmentBroken(r):
+    return not isActive(r)
+
+def isActive(n):
+    current_date = datetime.date.year * 10000 + datetime.date.month * 100 + datetime.date.day
+    active = (not hasattr(n, 'start_date') or n.start_date >= current_date) and (not hasattr(n, 'end_date') or n.end_date <= current_date)
+    active = active and (not hasattr(n, 'active') or n.active)
+    return active
+
 def extractNormalizedShareFromRelationShips(relationship):
     if (segmentBroken(relationship)):
         return 0
@@ -320,7 +327,7 @@ def get_available_capacity_for_contract(contract_id=None):
     #MATCH (c:CONTRACT{id:"hpc_bancarizada"}) MATCH (n:HPCNODE)  RETURN (c)-[*..1]->(n);
     sess = driver.session()
     result = sess.run(
-        "MATCH (c:CONTRACT{id:{pcontract_id}}) MATCH (n:HPCNODE)  RETURN (c)-[*..6]->(n)",
+        "MATCH (c:CONTRACT{id:{pcontract_id}}) MATCH (n:HPCNODE)  RETURN (c)-[*]->(n)",
         {
             "pcontract_id": contract_id
 

@@ -1,6 +1,4 @@
 #!/home/berna/anaconda2/bin/python
-
-
 import argparse
 import sys
 from dbsession import *
@@ -14,6 +12,15 @@ def get_create_hpc_node_parser():
     parser.add_argument("capacity", type = int, help = 'Number of core hours per hour (typically number of cores)')
     return parser
 
+def get_create_nas_node_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("cluster", type = str, help = 'Cluster the NAS belongs to')
+    parser.add_argument("nodeid", type = str, help = 'Unique id of the NAS within the cluster')
+    parser.add_argument("hostname", type = str, help = 'NAS\'s host name')
+    parser.add_argument("capacity", type = int, help = 'Final number of GB de NAS provides')
+    return parser
+
+
 def get_create_entity_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("entityid", type = str, help = 'Id of entity')
@@ -25,6 +32,18 @@ def get_create_entity_parser():
 def get_create_hpc_contract_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("contractid", type = str, help = 'Contract if')
+    parser.add_argument("description", type = str, help = 'Descriptive name')
+    parser.add_argument("uri", type = str, help = 'Contract\'s URI')
+    parser.add_argument("--startdate", type = int, help = 'Date the contract is valid from', default=None)
+    parser.add_argument("--enddate", type = int, help = 'Contract\'s due date', default=None)
+    parser.add_argument("--active", type = bool, help = 'True/False. Defaults to True. Weather the contract is active', default=True)
+
+
+    return parser
+
+def get_create_nas_contract_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("contractid", type = str, help = 'Contract id')
     parser.add_argument("description", type = str, help = 'Descriptive name')
     parser.add_argument("uri", type = str, help = 'Contract\'s URI')
     parser.add_argument("--startdate", type = int, help = 'Date the contract is valid from', default=None)
@@ -119,8 +138,10 @@ def get_assign_contract_owner_parser():
 
 parser_builders = {}
 parser_builders['createhpcnode'] = get_create_hpc_node_parser
+parser_builders['createnasnode'] = get_create_nas_node_parser
 parser_builders['createentity'] = get_create_entity_parser
 parser_builders['createhpccontract'] = get_create_hpc_contract_parser
+parser_builders['createnascontract'] = get_create_nas_contract_parser
 parser_builders['assignnodetocontract'] = get_assign_node_to_contract_parser
 parser_builders['assignsubcontract'] = get_assign_sub_contract_parser
 parser_builders['assigncontractadministrator'] = get_assign_contract_administrator_parser
@@ -130,10 +151,10 @@ parser_builders['linkcontracts'] = get_link_contracts_parser
 parser_builders['assignuser2contract'] = get_assign_contract_user
 
 
-
-
-
 def exec_create_hpc_node(args):
+    create_hpc_node(args.cluster, args.nodeid, args.hostname, args.capacity)
+
+def exec_create_nas_node(args):
     create_hpc_node(args.cluster, args.nodeid, args.hostname, args.capacity)
 
 def exec_create_entity(args):
@@ -141,6 +162,9 @@ def exec_create_entity(args):
 
 def exec_create_hpc_contract(args):
     create_hpc_contract(args.contractid, args.description, args.uri, args.startdate, args.enddate, args.active)
+
+def exec_create_nas_contract(args):
+    create_nas_contract(args.contractid, args.description, args.uri, args.startdate, args.enddate, args.active)
 
 def exec_assign_node_to_contract(args):
     assign_node_to_contract(args.nodeid, args.contractid, args.share, args.startdate, args.enddate,args.active)
@@ -169,8 +193,10 @@ def exec_assign_contract_user(args):
 command_funcs = {}
 
 command_funcs['createhpcnode'] = exec_create_hpc_node
+command_funcs['createnasnode'] = exec_create_nas_node
 command_funcs['createentity'] = exec_create_entity
 command_funcs['createhpccontract'] = exec_create_hpc_contract
+command_funcs['createnascontract'] = exec_create_nas_contract
 command_funcs['assignnodetocontract'] = exec_assign_node_to_contract
 command_funcs['assignsubcontract'] = exec_assign_sub_contract
 command_funcs['assigncontractadministrator'] = exec_assign_contract_administrator
