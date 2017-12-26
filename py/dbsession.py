@@ -226,7 +226,7 @@ def assign_contract_owner(contract_id, entity_id, entity_type):
 def assign_contract_user(contract_id, entity_id, start_date=None, end_date=None, active=True):
     sess = driver.session()
     sess.run(
-        "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (p:" + "USER" + ") WHERE p.id = {pentity_id} CREATE (p)-[:USES{start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(c)",
+        "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (p:" + "CLUSTERUSER" + ") WHERE p.id = {pentity_id} CREATE (p)-[:USES{start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(c)",
         {
             "pcontract_id": contract_id,
             "pentity_id": entity_id,
@@ -241,14 +241,41 @@ def assign_contract_user(contract_id, entity_id, start_date=None, end_date=None,
     sess.close()
 
 
+def create_cluster_user(cluster, user_id, email, start_date=None, end_date=None, active=True):
+    sess = driver.session()
+    result = sess.run("MATCH (n:USER) WHERE n.id = {pid} AND n.cluster = {pcluster}"
+                           "RETURN count(*)",
+                           {"pid": user_id, "pcluster": cluster})
 
-#Creates a USES relationship so origin_contract gives resources to dst_contract.   (destination_contract)-[USES]->(origin_contract)
+    if (result.peek()["count(*)"] > 0):
+        raise Exception("User already exists")
+
+
+    sess.run(
+            "CREATE (:CLUSTERUSER{cluster:{pcluster}, id:{pid}, email:{pemail}, uri:{puri}, description:{pdescription},start_date:{pstart_date},end_date:{pend_date}, active:{pactive} })",
+            {
+                "pcluster": cluster,
+                "pid": user_id,
+                "pemail": email,
+                "puri": "clusteruser://c:{0}/u:{1}".format(cluster,user_id),
+                "pstart_date": start_date,
+                "pend_date": end_date,
+                "pdescription": "User {0} on cluster {1}".format(user_id, cluster),
+                "pactive": active
+             }
+             )
+
+    sess.close()
+
+
+
+#Creates a USES relationship so source gives resources to dst_contract.   (destination_contract)-[USES]->(origin_contract)
 def link_contracts_by_use(origin_contract_id, destination_contract_id, share=None, start_date=None, end_date=None, active=True):
     get_contract(origin_contract_id)
     get_contract(destination_contract_id)
     sess = driver.session()
     sess.run(
-        "MATCH (p:CONTRACT) WHERE p.contract_id = {porigincontract_id} MATCH (c:CONTRACT) WHERE c.contract_id = {pdestinationcontract_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(p)",
+        "MATCH (p:CONTRACT) WHERE p.id = {porigincontract_id} MATCH (c:CONTRACT) WHERE c.id = {pdestinationcontract_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(p)",
         {
             "porigincontract_id": origin_contract_id,
             "pdestinationcontract_id": destination_contract_id,

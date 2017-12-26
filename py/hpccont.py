@@ -21,6 +21,18 @@ def get_create_nas_node_parser():
     return parser
 
 
+def get_create_cluster_user_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("cluster", type = str, help = 'Cluster the User belongs to')
+    parser.add_argument("userid", type = str, help = 'Unique id of the NAS within the cluster')
+    parser.add_argument("email", type = str, help = 'NAS\'s host name')
+    parser.add_argument("--startdate", type = int, help = 'Date the user account is valid from', default=None)
+    parser.add_argument("--enddate", type = int, help = 'Accounts\'s due date', default=None)
+    parser.add_argument("--active", type = bool, help = 'True/False. Defaults to True. Weather the user account is active', default=True)
+
+    return parser
+
+
 def get_create_entity_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("entityid", type = str, help = 'Id of entity')
@@ -149,6 +161,7 @@ parser_builders['assigncontractowner'] = get_assign_contract_owner_parser
 parser_builders['updatecontract'] = get_update_contract_parser
 parser_builders['linkcontracts'] = get_link_contracts_parser
 parser_builders['assignuser2contract'] = get_assign_contract_user
+parser_builders['createclusteruser'] = get_create_cluster_user_parser
 
 
 def exec_create_hpc_node(args):
@@ -156,6 +169,9 @@ def exec_create_hpc_node(args):
 
 def exec_create_nas_node(args):
     create_hpc_node(args.cluster, args.nodeid, args.hostname, args.capacity)
+
+def exec_create_cluster_user(args):
+    create_cluster_user(args.cluster, args.userid, args.email, args.startdate, args.enddate, args.active)
 
 def exec_create_entity(args):
     create_entity(args.entityid, args.entityname, args.entitytype)
@@ -182,7 +198,7 @@ def exec_update_contract(args):
     update_contract(id=args.contractid, description=args.description, uri=args.uri, start_date=args.startdate, end_date=args.enddate, active=args.active )
 
 def exec_link_contracts(args):
-    link_contracts_by_use(origin_contract_id=args.srccontractid, destination_contract_id=args.destinationcontractid, share=args.share, start_date=args.startdate, end_date=args.enddate, active=args.active)
+    link_contracts_by_use(origin_contract_id=args.srccontractid, destination_contract_id=args.dstcontractid, share=args.share, start_date=args.startdate, end_date=args.enddate, active=args.active)
 
 
 def exec_assign_contract_user(args):
@@ -204,7 +220,7 @@ command_funcs['assigncontractowner'] = exec_assign_contract_owner
 command_funcs['updatecontract'] = exec_update_contract
 command_funcs['linkcontracts'] = exec_link_contracts
 command_funcs['assignuser2contract'] = exec_assign_contract_user
-
+command_funcs['createclusteruser'] = exec_create_cluster_user
 
 def get_parser(main_command):
     return parser_builders[main_command]()
