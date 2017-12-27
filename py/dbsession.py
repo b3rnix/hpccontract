@@ -195,7 +195,7 @@ def assign_sub_contract(child_contract_id, parent_contract_id, share=None, start
 def assign_contract_administrator(contract_id, person_id, start_date=None, end_date=None, active=True):
     sess = driver.session()
     sess.run(
-        "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (p:PERSON) WHERE p.id = {pperson_id} CREATE (p)-[:ADMINISTRATIR{start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(c)",
+        "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (p:PERSON) WHERE p.id = {pperson_id} CREATE (p)-[:ADMINISTRATOR{start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(c)",
         {
             "pcontract_id": contract_id,
             "pperson_id": person_id,
