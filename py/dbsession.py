@@ -380,6 +380,48 @@ def get_available_capacity_for_contract(contract_id=None):
 #print get_available_capacity_for_contract("hpc_bancarizada")
 
 
+def is_resource_node(node):
+    pass
+
+
+def is_percent_rel(rel):
+    pass
+
+
+def get_nbor_rels(node):
+    pass
+
+
+def get_capacity_from_adjmat(adjmat, node):
+
+    if is_resource_node(node):
+        capacity = node.capcity
+    else:
+        for rel in get_nbor_rels(node):
+            #TODO: EXTRAER ESTA LOGICA EN UN METODO
+            if is_percent_rel(rel):
+                capacity = rel.share * get_capacity_from_adjmat(adjmat, rel.end)
+            else:
+                capacity = rel.share
+
+    return capacity
+
+
+def get_adjmat(paths):
+    pass
+
+def get_unbroken_paths_to_nodes(contract_id):
+    pass
+
+
+def get_contract_capacity(contract_id):
+    contract_node, paths = get_unbroken_paths_to_nodes(contract_id)
+    adjmat = get_adjmat(paths)
+    capacity = get_capacity_from_adjmat(adjmat, contract_node)
+    return capacity
+
+
+
 def generate_slurm_credits_command(contract_id, days):
 
     contract = get_contract(contract_id)
