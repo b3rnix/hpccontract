@@ -3,7 +3,7 @@ from neo4j.v1 import GraphDatabase, basic_auth
 import re
 
 
-driver = GraphDatabase.driver("bolt://localhost:7687", auth=basic_auth("neo4j", "otwauk"))
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=basic_auth("neo4j", "hpccontract"))
 
 sess = driver.session()
 
@@ -381,43 +381,70 @@ def get_available_capacity_for_contract(contract_id=None):
 
 
 def is_resource_node(node):
-    pass
+    return 'HPCNODE' in node['labels']
 
 
 def is_percent_rel(rel):
-    pass
+    return (rel['properties']['share'].count('%') > 0 )
 
 
 def get_nbor_rels(node):
     pass
 
 
-def get_capacity_from_adjmat(adjmat, node):
+def get_capacity_from_tree(tree, node):
 
     if is_resource_node(node):
-        capacity = node.capcity
+        capacity = node['properties']['capacity']
     else:
-        for rel in get_nbor_rels(node):
+        capacity = 0.0
+        nbs = node['neighbors']
+        for k in nbs.keys():
+            nb = nbs[k]
             #TODO: EXTRAER ESTA LOGICA EN UN METODO
-            if is_percent_rel(rel):
-                capacity = rel.share * get_capacity_from_adjmat(adjmat, rel.end)
+            if is_percent_rel(nb):
+                capacity = capacity + float(str.strip(str(nb['properties']['share']),'%')) / 100. * get_capacity_from_tree(tree, tree[k])
             else:
-                capacity = rel.share
+                capacity = capacity + float(nb['properties']['share'])
 
     return capacity
 
 
-def get_adjmat(paths):
-    pass
+def get_tree_from_paths(paths):
+    tree = {}
+    for pp in paths:
+        for p in pp.values():
+            for n in p.nodes:
+                if not tree.has_key(n.id):
+                    node = {'properties': n.properties, 'labels': n.labels, 'neighbors': {}}
+                    tree[n.id] = node
+
+    for pp in paths:
+        for p in pp.values():
+            for r in p.relationships:
+                tree[r.start]['neighbors'][r.end] = {'node': tree[r.end],'type': r.type, 'properties': r.properties}
+
+    return tree
 
 def get_unbroken_paths_to_nodes(contract_id):
-    pass
+    # All paths whose relationships and nodes are all active and not due
+    today = datetime.date.today()
+    today_num = today.year * 10000 + today.month * 100 + today.day
+
+    query = "MATCH p=(x:CONTRACT{id:{pcontract_id}})-->(n:HPCNODE) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) RETURN p"
+
+    sess = driver.session()
+    result = sess.run(query,{"pcontract_id": contract_id, "pdate": today_num})
+    data = result.data()
+    sess.close()
+
+    return data[0]['p'].start.id, data
 
 
 def get_contract_capacity(contract_id):
-    contract_node, paths = get_unbroken_paths_to_nodes(contract_id)
-    adjmat = get_adjmat(paths)
-    capacity = get_capacity_from_adjmat(adjmat, contract_node)
+    id, paths = get_unbroken_paths_to_nodes(contract_id)
+    tree = get_tree_from_paths(paths)
+    capacity = get_capacity_from_tree(tree, tree[id])
     return capacity
 
 
@@ -443,45 +470,45 @@ def generate_slurm_credits_command(contract_id, days):
 
 
 
-#create_hpc_contract(id="quimica_bancarizada",description="Acceso a Bancarizada Gerencia Quimica",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:quimicabancarizada", active=True )
-#create_hpc_contract(id="fisica_bancarizada",description="Acceso a Bancarizada Gerencia Fisica",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:fisicabancarizada", active=True )
-#create_hpc_contract(id="gtic_bancarizada",description="Acceso a Bancarizada Gerencia GTIC",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:gticbancarizada", active=True )
-#create_hpc_contract(id="gpuresearch",description="Investigacion GPU",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:gticgpuresearch", active=True )
-
-#assign_sub_contract("quimica_bancarizada", "hpc_bancarizada", share="30%", start_date=20170701, end_date=20180801, active=True)
-#assign_sub_contract("fisica_bancarizada", "hpc_bancarizada", share="30%", start_date=20170701, end_date=20180801, active=True)
-#assign_sub_contract("gtic_bancarizada", "hpc_bancarizada", share="20%", start_date=20170701, end_date=20180801, active=True)
-#assign_sub_contract("gpuresearch", "gtic_bancarizada", share="30%", start_date=20170701, end_date=20180801, active=True)
-
-#create_entity("GTIC", "G.T.I.C.", "GERENCIA")
-#create_entity("FISICA", "Gerencia de Fisica", "GERENCIA")
-#create_entity("QUIMICA", "Gerencia de Quimica", "GERENCIA")
-
-#create_entity("lanieto@cnea.gov.ar", "Nieto", "PERSON")
-
-#assign_contract_administrator(contract_id="quimica_bancarizada", person_id="bernabepanarello@cnea.gov.ar", start_date=20170801, end_date=20190801)
-#assign_contract_administrator(contract_id="gtic_bancarizada", person_id="rgarcia@cnea.gov.ar", start_date=20170801, end_date=20190801)
-#assign_contract_administrator(contract_id="gpuresearch", person_id="bernabepanarello@cnea.gov.ar", start_date=20170801, end_date=20190801)
-#assign_contract_administrator(contract_id="hpc_bancarizada", person_id="iozzo@cnea.gov.ar", start_date=20170801, end_date=20190731)
-#assign_contract_administrator(contract_id="hpc_bancarizada", person_id="lanieto@cnea.gov.ar", start_date=20190801, end_date=20220731)
-
-#assign_contract_owner(contract_id="hpc_bancarizada", entity_id="GTIC", entity_type="GERENCIA" )
-
-#create_hpc_node("neurus", "compute-1-0", "compute-1-0", 24)
-#create_hpc_node("neurus", "compute-1-1", "compute-1-1", 24)
-#create_hpc_node("neurus", "compute-1-2", "compute-1-2", 24)
-
-#create_hpc_contract(id="hpcreactores",description="Proyecto Reactores",start_date=20170701, uri="slurm://c:neurus/p:reactores/a:reactores", active=True )
-#assign_node_to_contract(node_id="compute-1-0", contract_id="hpcreactores", share="80%", start_date=20170701)
-#assign_node_to_contract(node_id="compute-1-1", contract_id="hpcreactores", share="80%", start_date=20170701)
-#assign_node_to_contract(node_id="compute-1-2", contract_id="hpcreactores", share="80%", start_date=20170701)
-
-#assign_node_to_contract(node_id="compute-1-0", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
-#assign_node_to_contract(node_id="compute-1-1", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
-#assign_node_to_contract(node_id="compute-1-2", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
-
-#create_entity("rios@cnea.gov.ar", "Rios", "PERSON")
-#assign_contract_administrator(contract_id="hpcreactores", person_id="rios@cnea.gov.ar", start_date=20170801, end_date=20190801)
+# create_hpc_contract(id="quimica_bancarizada",description="Acceso a Bancarizada Gerencia Quimica",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:quimicabancarizada", active=True )
+# create_hpc_contract(id="fisica_bancarizada",description="Acceso a Bancarizada Gerencia Fisica",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:fisicabancarizada", active=True )
+# create_hpc_contract(id="gtic_bancarizada",description="Acceso a Bancarizada Gerencia GTIC",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:gticbancarizada", active=True )
+# create_hpc_contract(id="gpuresearch",description="Investigacion GPU",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:gticgpuresearch", active=True )
+#
+# assign_sub_contract("quimica_bancarizada", "hpc_bancarizada", share="30%", start_date=20170701, end_date=20180801, active=True)
+# assign_sub_contract("fisica_bancarizada", "hpc_bancarizada", share="30%", start_date=20170701, end_date=20180801, active=True)
+# assign_sub_contract("gtic_bancarizada", "hpc_bancarizada", share="20%", start_date=20170701, end_date=20180801, active=True)
+# assign_sub_contract("gpuresearch", "gtic_bancarizada", share="30%", start_date=20170701, end_date=20180801, active=True)
+#
+# create_entity("GTIC", "G.T.I.C.", "GERENCIA")
+# create_entity("FISICA", "Gerencia de Fisica", "GERENCIA")
+# create_entity("QUIMICA", "Gerencia de Quimica", "GERENCIA")
+#
+# create_entity("lanieto@cnea.gov.ar", "Nieto", "PERSON")
+#
+# assign_contract_administrator(contract_id="quimica_bancarizada", person_id="bernabepanarello@cnea.gov.ar", start_date=20170801, end_date=20190801)
+# assign_contract_administrator(contract_id="gtic_bancarizada", person_id="rgarcia@cnea.gov.ar", start_date=20170801, end_date=20190801)
+# assign_contract_administrator(contract_id="gpuresearch", person_id="bernabepanarello@cnea.gov.ar", start_date=20170801, end_date=20190801)
+# assign_contract_administrator(contract_id="hpc_bancarizada", person_id="iozzo@cnea.gov.ar", start_date=20170801, end_date=20190731)
+# assign_contract_administrator(contract_id="hpc_bancarizada", person_id="lanieto@cnea.gov.ar", start_date=20190801, end_date=20220731)
+#
+# assign_contract_owner(contract_id="hpc_bancarizada", entity_id="GTIC", entity_type="GERENCIA" )
+#
+# create_hpc_node("neurus", "compute-1-0", "compute-1-0", 24)
+# create_hpc_node("neurus", "compute-1-1", "compute-1-1", 24)
+# create_hpc_node("neurus", "compute-1-2", "compute-1-2", 24)
+#
+# create_hpc_contract(id="hpcreactores",description="Proyecto Reactores",start_date=20170701, uri="slurm://c:neurus/p:reactores/a:reactores", active=True )
+# assign_node_to_contract(node_id="compute-1-0", contract_id="hpcreactores", share="80%", start_date=20170701)
+# assign_node_to_contract(node_id="compute-1-1", contract_id="hpcreactores", share="80%", start_date=20170701)
+# assign_node_to_contract(node_id="compute-1-2", contract_id="hpcreactores", share="80%", start_date=20170701)
+#
+# assign_node_to_contract(node_id="compute-1-0", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
+# assign_node_to_contract(node_id="compute-1-1", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
+# assign_node_to_contract(node_id="compute-1-2", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
+#
+# create_entity("rios@cnea.gov.ar", "Rios", "PERSON")
+# assign_contract_administrator(contract_id="hpcreactores", person_id="rios@cnea.gov.ar", start_date=20170801, end_date=20190801)
 
 #generate_slurm_credits_command("hpcreactores", 30)
 
@@ -489,4 +516,7 @@ def generate_slurm_credits_command(contract_id, days):
 #assign_node_to_contract(node_id="compute-2-15", contract_id="gpuresearch", share="100%", start_date=20170701)
 
 
-update_contract("hpc_bancarizada", start_date= 20180101)
+id,paths = get_unbroken_paths_to_nodes("hpcreactores")
+tree=get_tree_from_paths(paths)
+c= get_capacity_from_tree(tree, tree[id])
+pass
