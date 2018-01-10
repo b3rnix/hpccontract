@@ -318,63 +318,11 @@ def update_node(id, kwargs):
     sess.close()
 
 
-def segmentBroken(r):
-    return not isActive(r)
-
 def isActive(n):
     current_date = datetime.date.year * 10000 + datetime.date.month * 100 + datetime.date.day
     active = (not hasattr(n, 'start_date') or n.start_date >= current_date) and (not hasattr(n, 'end_date') or n.end_date <= current_date)
     active = active and (not hasattr(n, 'active') or n.active)
     return active
-
-def extractNormalizedShareFromRelationShips(relationship):
-    if (segmentBroken(relationship)):
-        return 0
-    if ("share" in relationship.properties):
-        return float(relationship.properties["share"].strip ("%")) / 100
-    else:
-        return 1
-
-def calculatePathWeight(path):
-    relationships = path.relationships
-    shares = map (extractNormalizedShareFromRelationShips, relationships)
-    factor = reduce(lambda fac,share: fac * share, shares,1.0)
-    return factor
-
-def get_available_capacity_for_contract(contract_id=None):
-    # Each contract contains one or more paths to the resources connected directly or indirectly to it.(i.e. a path connect a single
-    # contract to a single resource)
-    # Each path has a weight calculated as the product of the attribute "share" corresponding to
-    # each segment forming the path. If the path is broken at one of its segments (i.e. the segment is inactive, dued, etc.),
-    # then that segment's weight will be set to 0 and therefore the entire path's capacity will become 0.
-    # The path's capacity represents how much capacity is drained from a node/resource to the linked contract via this path, and it is calculated
-    # as the node's capacity times the path's capacity (which is always a number between 0 and 1).
-
-
-    #MATCH (c:CONTRACT{id:"hpc_bancarizada"}) MATCH (n:HPCNODE)  RETURN (c)-[*..1]->(n);
-    sess = driver.session()
-    result = sess.run(
-        "MATCH (c:CONTRACT{id:{pcontract_id}}) MATCH (n:HPCNODE)  RETURN (c)-[*]->(n)",
-        {
-            "pcontract_id": contract_id
-
-        }
-    )
-    data = result.data()
-    sess.close()
-    #for pathentry in data[0].values():
-
-    contractcapacity = 0.0
-    for pathentry in data:
-        if not (pathentry.values() == [[]]) > 0:
-            path= pathentry.values()[0][0]
-            weight = calculatePathWeight(path)
-            resource = path.end
-            capacity = resource.properties["capacity"]
-            pathcapacity = capacity * weight
-            contractcapacity+=pathcapacity
-
-    return contractcapacity
 
 #assign_node_to_contract(node_id="compute-0-8", contract_id="hpc_bancarizada", share="50%", start_date=20170701)
 #print get_available_capacity_for_contract("hpc_bancarizada")
@@ -388,11 +336,10 @@ def is_percent_rel(rel):
     return (rel['properties']['share'].count('%') > 0 )
 
 
-def get_nbor_rels(node):
-    pass
-
-
 def get_capacity_from_tree(tree, node):
+    if len(tree) == 0:
+        return 0.
+
 
     if is_resource_node(node):
         capacity = node['properties']['capacity']
@@ -431,13 +378,14 @@ def get_unbroken_paths_to_nodes(contract_id):
     today = datetime.date.today()
     today_num = today.year * 10000 + today.month * 100 + today.day
 
-    query = "MATCH p=(x:CONTRACT{id:{pcontract_id}})-->(n:HPCNODE) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) RETURN p"
+    query = "MATCH p=(x:CONTRACT{id:{pcontract_id}})-[*]->(n:HPCNODE) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) RETURN p"
 
     sess = driver.session()
     result = sess.run(query,{"pcontract_id": contract_id, "pdate": today_num})
     data = result.data()
     sess.close()
-
+    if len(data) == 0:
+        return 0,[]
     return data[0]['p'].start.id, data
 
 
@@ -516,7 +464,77 @@ def generate_slurm_credits_command(contract_id, days):
 #assign_node_to_contract(node_id="compute-2-15", contract_id="gpuresearch", share="100%", start_date=20170701)
 
 
-id,paths = get_unbroken_paths_to_nodes("hpcreactores")
-tree=get_tree_from_paths(paths)
-c= get_capacity_from_tree(tree, tree[id])
-pass
+#create_hpc_contract(id="leecher",description="Leecher de bancarizada",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:leecher", active=True )
+#link_contracts_by_use("hpcreactores", "leecher", share="50%", start_date=20170701, end_date=20190101, active=True)
+
+
+# Consultas
+def get_hpc_contract_credits(contract_id):
+    id, paths = get_unbroken_paths_to_nodes(contract_id)
+    if paths == []:
+        c = 0
+    else:
+        tree = get_tree_from_paths(paths)
+        if not tree == {}:
+            c = get_capacity_from_tree(tree, tree[id])
+        else:
+            c = 0
+
+    return {'credits': c}
+
+def get_contracts_list(contract_type=None):
+    today = datetime.date.today()
+    today_num = today.year * 10000 + today.month * 100 + today.day
+
+    type_prefix = ""
+    if not contract_type is None:
+        type_prefix = ":" + str.upper(contract_type)
+
+
+    query = "MATCH (c:CONTRACT" + type_prefix +  ") WHERE (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND c.active  RETURN c"
+
+    sess = driver.session()
+    result = sess.run(query, {"pdate": today_num})
+    data = result.data()
+    sess.close()
+    ret = {}
+    for cc in data:
+        for c in cc.values():
+            ret[c.properties['id']] = c.properties
+
+    return ret
+
+def get_credits_for_all_hpc_contracts():
+    contracts = get_contracts_list("HPC")
+    credits = {}
+    for k in contracts.keys():
+        credits[k] = get_hpc_contract_credits(k)['credits']
+
+
+    return credits
+
+
+def get_node_list(node_type):
+    today = datetime.date.today()
+    today_num = today.year * 10000 + today.month * 100 + today.day
+
+    query = "MATCH (c:"+str.upper(node_type)+"NODE) WHERE (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
+
+    sess = driver.session()
+    result = sess.run(query, {"pdate": today_num})
+    data = result.data()
+    sess.close()
+    ret = {}
+    for cc in data:
+        for c in cc.values():
+            ret[c.properties['id']] = c.properties
+
+    return ret
+
+
+def get_partitions_uri_for_nodes():
+    query = "MATCH p=(n:HPCNODE{id:{pnode_id}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN x.uri"
+
+
+
+get_node_list("HPC")
