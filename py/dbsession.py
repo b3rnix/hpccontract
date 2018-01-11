@@ -4,10 +4,15 @@ import re
 
 
 driver = GraphDatabase.driver("bolt://localhost:7687", auth=basic_auth("neo4j", "hpccontract"))
-
-sess = driver.session()
-
 slurmuriregex  = re.compile('slurm:\/\/c:([a-zA-Z0-9]+)\/p:([a-zA-Z0-9]+)\/a:([a-zA-Z0-9]+)')
+def run_query(query, pars):
+    sess = driver.session()
+    result = sess.run(query, pars)
+    data = result.data()
+    sess.close()
+    return data
+
+
 def get_slurm_data_from_uri(uri):
     m = slurmuriregex.match(uri)
     if m == None:
@@ -375,9 +380,7 @@ def get_tree_from_paths(paths):
 
 def get_unbroken_paths_to_nodes(contract_id):
     # All paths whose relationships and nodes are all active and not due
-    today = datetime.date.today()
-    today_num = today.year * 10000 + today.month * 100 + today.day
-
+    today_num = get_today_num()
     query = "MATCH p=(x:CONTRACT{id:{pcontract_id}})-[*]->(n:HPCNODE) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) RETURN p"
 
     sess = driver.session()
@@ -483,8 +486,7 @@ def get_hpc_contract_credits(contract_id):
     return {'credits': c}
 
 def get_contracts_list(contract_type=None):
-    today = datetime.date.today()
-    today_num = today.year * 10000 + today.month * 100 + today.day
+    today_num = get_today_num()
 
     type_prefix = ""
     if not contract_type is None:
@@ -515,8 +517,7 @@ def get_credits_for_all_hpc_contracts():
 
 
 def get_node_list(node_type):
-    today = datetime.date.today()
-    today_num = today.year * 10000 + today.month * 100 + today.day
+    today_num = get_today_num()
 
     query = "MATCH (c:"+str.upper(node_type)+"NODE) WHERE (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
 
@@ -532,9 +533,57 @@ def get_node_list(node_type):
     return ret
 
 
-def get_partitions_uri_for_nodes():
-    query = "MATCH p=(n:HPCNODE{id:{pnode_id}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN x.uri"
+def get_today_num():
+    today = datetime.date.today()
+    today_num = today.year * 10000 + today.month * 100 + today.day
+    return today_num
 
 
+def get_contracts_uri_for_nodes(cluster, node_id=None):
+    today = get_today_num()
+    if not node_id is None:
+        query = "MATCH p=(n:HPCNODE{id:{pnode_id},cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
+        params = {'pnode_id': node_id}
+    else:
+        query = "MATCH p=(n:HPCNODE{cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
+        params = {}
 
-get_node_list("HPC")
+    params['pcluster'] = cluster
+    params['pdate'] = today
+    data = run_query(query, params)
+
+    ret = {}
+
+    for d in data:
+        if not ret.has_key(d['n.id']):
+            ret[d['n.id']] = []
+
+        if not d['x.uri'] is None:
+            ret[d['n.id']].append(d['x.uri'])
+
+    return ret
+
+def get_hpc_partitions_for_nodes(cluster, node_id=None):
+    uris = get_contracts_uri_for_nodes(cluster, node_id)
+
+    partitions = {}
+
+    for k in uris.keys():
+        partitions[k] = []
+        for u in uris[k]:
+            part = get_slurm_data_from_uri(u)['partition']
+            if not part is None and not part in partitions[k]:
+                partitions[k].append(part)
+
+    return partitions
+
+def get_partition_users(partition):
+    query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:HPC:CONTRACT) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) AND (c.uri =~ {puripat}) RETURN u,c,r"
+    pars = {'pdate':get_today_num(),'puripat': '.*/p:' + partition + '.*'}
+    data = run_query(query,pars)
+    return [{'user': d['u'].properties, 'relation': d['r'].properties} for d in data]
+
+
+#assign_contract_user("leecher", "bernabepanarello", start_date=None, end_date=20180229, active=True)
+users = get_partition_users('bancarizada')
+print users
