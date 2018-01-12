@@ -198,7 +198,7 @@ def exec_update_contract(args):
     update_contract(id=args.contractid, description=args.description, uri=args.uri, start_date=args.startdate, end_date=args.enddate, active=args.active )
 
 def exec_link_contracts(args):
-    link_contracts_by_use(origin_contract_id=args.srccontractid, destination_contract_id=args.dstcontractid, share=args.share, start_date=args.startdate, end_date=args.enddate, active=args.active)
+    link_contracts_by_use(resource_contract_id=args.srccontractid, consumer_contract_id=args.dstcontractid, share=args.share, start_date=args.startdate, end_date=args.enddate, active=args.active)
 
 
 def exec_assign_contract_user(args):

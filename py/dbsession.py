@@ -161,10 +161,27 @@ def create_hpc_contract(id, description, uri, start_date=None, end_date=None, ac
 
 #create_hpc_contract(id="hpc_bancarizada",description="Contrato de Cuenta Bancarizada HPC para Neurus",start_date=20170701,uri="slurm://neurus/bancarizada", active=True )
 
-def assign_node_to_contract(node_id, contract_id, share=None, start_date=None, end_date=None, active=True):
+def assign_hpc_node_to_contract(node_id, contract_id, share=None, start_date=None, end_date=None, active=True):
     sess = driver.session()
     sess.run(
         "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (n:HPCNODE) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)",
+        {
+            "pnode_id": node_id,
+            "pcontract_id": contract_id,
+            "pshare": share,
+            "pstart_date": start_date,
+            "pend_date": end_date,
+            "pactive": active
+
+        }
+    )
+
+    sess.close()
+
+def assign_nas_node_to_contract(node_id, contract_id, share=None, start_date=None, end_date=None, active=True):
+    sess = driver.session()
+    sess.run(
+        "MATCH (c:CONTRACT:NAS) WHERE c.id = {pcontract_id} MATCH (n:NASNODE) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)",
         {
             "pnode_id": node_id,
             "pcontract_id": contract_id,
@@ -275,15 +292,15 @@ def create_cluster_user(cluster, user_id, email, start_date=None, end_date=None,
 
 
 #Creates a USES relationship so source gives resources to dst_contract.   (destination_contract)-[USES]->(origin_contract)
-def link_contracts_by_use(origin_contract_id, destination_contract_id, share=None, start_date=None, end_date=None, active=True):
-    get_contract(origin_contract_id)
-    get_contract(destination_contract_id)
+def link_contracts_by_use(resource_contract_id, consumer_contract_id, share=None, start_date=None, end_date=None, active=True):
+    get_contract(resource_contract_id)
+    get_contract(consumer_contract_id)
     sess = driver.session()
     sess.run(
         "MATCH (p:CONTRACT) WHERE p.id = {porigincontract_id} MATCH (c:CONTRACT) WHERE c.id = {pdestinationcontract_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(p)",
         {
-            "porigincontract_id": origin_contract_id,
-            "pdestinationcontract_id": destination_contract_id,
+            "porigincontract_id": resource_contract_id,
+            "pdestinationcontract_id": consumer_contract_id,
             "pshare": share,
             "pstart_date": start_date,
             "pend_date": end_date,
@@ -577,13 +594,31 @@ def get_hpc_partitions_for_nodes(cluster, node_id=None):
 
     return partitions
 
-def get_partition_users(partition):
+def get_slurm_partition_users(partition):
     query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:HPC:CONTRACT) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) AND (c.uri =~ {puripat}) RETURN u,c,r"
     pars = {'pdate':get_today_num(),'puripat': '.*/p:' + partition + '.*'}
     data = run_query(query,pars)
     return [{'user': d['u'].properties, 'relation': d['r'].properties} for d in data]
 
 
+def get_nas_user_groups(nas_id):
+    pass
+
 #assign_contract_user("leecher", "bernabepanarello", start_date=None, end_date=20180229, active=True)
-users = get_partition_users('bancarizada')
-print users
+#users = get_slurm_partition_users('bancarizada')
+#create_nas_node("neurus", "nas-0-0", "nas-0-0", 50000)
+
+#create_nas_contract("nas_neurus_gerencias", "Contrato NAS para Gerencias Cluster Neurus","",20180101)
+#assign_nas_node_to_contract("nas-0-0", "nas_neurus_gerencias")
+#create_nas_contract("nas_neurus_gerencias_gerencia1", "Contrato NAS para Gerencia 1 Cluster Neurus","",20180101)
+#create_nas_contract("nas_neurus_gerencias_gerencia2", "Contrato NAS para Gerencia 2 Cluster Neurus","",20180101)
+#create_nas_contract("nas_neurus_gerencias_gerencia3", "Contrato NAS para Gerencia 3 Cluster Neurus","",20180101)
+#link_contracts_by_use("nas_neurus_gerencias","nas_neurus_gerencias_gerencia1","10000")
+#link_contracts_by_use("nas_neurus_gerencias","nas_neurus_gerencias_gerencia2","10000")
+#link_contracts_by_use("nas_neurus_gerencias","nas_neurus_gerencias_gerencia3","5000")
+#create_nas_contract("nas_neurus_gerencia1_grupoa", "Gerencia 1 Geupo A","zfs://nas-0-0/volg1/ga",20180101)
+#create_nas_contract("nas_neurus_gerencia1_grupob", "Gerencia 1 Geupo B","zfs://nas-0-0/volg1/gb",20180101)
+create_nas_contract("nas_neurus_gerencia1_grupoc", "Gerencia 1 Geupo C","zfs://nas-0-0/volg1/gc",20180101)
+#link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupoa","100")
+#link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupob","100")
+link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupoc","100")
