@@ -24,7 +24,7 @@ def get_slurm_data_from_uri(uri):
         "account": m.groups()[2]
     }
 
-def get_contract(contract_id):
+def get_contract(contract_id, cluster_id=None):
     sess = driver.session()
     result = sess.run("MATCH (c:CONTRACT) WHERE c.id = {id} "
                            "RETURN c",
@@ -601,8 +601,24 @@ def get_slurm_partition_users(partition):
     return [{'user': d['u'].properties, 'relation': d['r'].properties} for d in data]
 
 
-def get_nas_user_groups(nas_id):
-    pass
+#Rule: When a User as link to a NAS contract, then It will have R/W access to the resource pointed to that contract's
+# URI. Access is granted by adding the user to a group, whose name is determined as a function of the URI.
+def get_nas_contract_group_name(contract):
+    return "nas_grp_" + str(contract.id)
+
+def get_nas_group_members(cluster_id, contract_id):
+    query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:CONTRACT:NAS) WHERE c.id = 'nas_neurus_gerencia1_grupoa' AND (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) RETURN u"
+    pars = {'pdate':get_today_num(), 'contract_id': contract_id}
+    data = run_query(query, pars)
+    return [d['u'].properties for d in data]
+
+
+def get_nas_contract_user_group(cluster_id, contract_id):
+    contract = get_contract(contract_id, cluster_id)
+    group_name= get_nas_contract_group_name(contract)
+    members = get_nas_group_members(cluster_id, contract_id)
+    return {'group_name': group_name, 'members': members }
+
 
 #assign_contract_user("leecher", "bernabepanarello", start_date=None, end_date=20180229, active=True)
 #users = get_slurm_partition_users('bancarizada')
@@ -618,7 +634,10 @@ def get_nas_user_groups(nas_id):
 #link_contracts_by_use("nas_neurus_gerencias","nas_neurus_gerencias_gerencia3","5000")
 #create_nas_contract("nas_neurus_gerencia1_grupoa", "Gerencia 1 Geupo A","zfs://nas-0-0/volg1/ga",20180101)
 #create_nas_contract("nas_neurus_gerencia1_grupob", "Gerencia 1 Geupo B","zfs://nas-0-0/volg1/gb",20180101)
-create_nas_contract("nas_neurus_gerencia1_grupoc", "Gerencia 1 Geupo C","zfs://nas-0-0/volg1/gc",20180101)
+#create_nas_contract("nas_neurus_gerencia1_grupoc", "Gerencia 1 Geupo C","zfs://nas-0-0/volg1/gc",20180101)
 #link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupoa","100")
 #link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupob","100")
-link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupoc","100")
+#link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupoc","100")
+#assign_contract_user("nas_neurus_gerencia1_grupoa", "gaston")
+r=get_nas_contract_user_group("neurus", "nas_neurus_gerencia1_grupoa")
+print r
