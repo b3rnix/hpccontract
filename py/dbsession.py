@@ -620,6 +620,16 @@ def get_nas_contract_user_group(cluster_id, contract_id):
     return {'group_name': group_name, 'members': members }
 
 
+# Rule: ZFS Volumes are Second-Level contracts (NAS->TOP LEVEL CONTRACT-->VOLUMES)
+def get_nas_volume_contracts(cluster_id, node_id):
+    query = "MATCH p=((c:CONTRACT:NAS)-[*2..2]->(n:NASNODE)) WHERE n.id = {pnode_id} AND (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) ))   AND (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
+    pars = {'pdate':get_today_num(), 'pnode_id': node_id}
+    data = run_query(query, pars)
+    return [d['c'].properties for d in data]
+
+# VOLUMENES: MATCH (c:CONTRACT:NAS)-[*2..2]->(n:NASNODE) RETURN c
+
+
 #assign_contract_user("leecher", "bernabepanarello", start_date=None, end_date=20180229, active=True)
 #users = get_slurm_partition_users('bancarizada')
 #create_nas_node("neurus", "nas-0-0", "nas-0-0", 50000)
@@ -639,5 +649,5 @@ def get_nas_contract_user_group(cluster_id, contract_id):
 #link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupob","100")
 #link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupoc","100")
 #assign_contract_user("nas_neurus_gerencia1_grupoa", "gaston")
-r=get_nas_contract_user_group("neurus", "nas_neurus_gerencia1_grupoa")
+r=get_nas_volume_contracts("neurus", "nas-0-0")
 print r
