@@ -41,7 +41,7 @@ def get_contract(contract_id, cluster_id=None):
 
 def create_hpc_node(cluster, node_id, host_name, capacity):
     sess = driver.session()
-    result = sess.run("MATCH (n:HPCNODE) WHERE n.id = {id} "
+    result = sess.run("MATCH (n:) WHERE n.id = {id} "
                            "RETURN count(*)",
                            {"id": node_id})
 
@@ -50,7 +50,7 @@ def create_hpc_node(cluster, node_id, host_name, capacity):
 
 
     sess.run(
-            "CREATE (:HPCNODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})",
+            "CREATE (:{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})",
             {
                 "pcluster": cluster,
                 "pid": node_id,
@@ -64,7 +64,7 @@ def create_hpc_node(cluster, node_id, host_name, capacity):
 
 def create_nas_node(cluster, node_id, host_name, capacity):
     sess = driver.session()
-    result = sess.run("MATCH (n:NASNODE) WHERE n.id = {id} "
+    result = sess.run("MATCH (n:NAS:NODE) WHERE n.id = {id} "
                            "RETURN count(*)",
                            {"id": node_id})
 
@@ -73,7 +73,7 @@ def create_nas_node(cluster, node_id, host_name, capacity):
 
 
     sess.run(
-            "CREATE (:NASNODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})",
+            "CREATE (:NAS:NODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})",
             {
                 "pcluster": cluster,
                 "pid": node_id,
@@ -164,7 +164,7 @@ def create_hpc_contract(id, description, uri, start_date=None, end_date=None, ac
 def assign_hpc_node_to_contract(node_id, contract_id, share=None, start_date=None, end_date=None, active=True):
     sess = driver.session()
     sess.run(
-        "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (n:HPCNODE) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)",
+        "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (n:) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)",
         {
             "pnode_id": node_id,
             "pcontract_id": contract_id,
@@ -181,7 +181,7 @@ def assign_hpc_node_to_contract(node_id, contract_id, share=None, start_date=Non
 def assign_nas_node_to_contract(node_id, contract_id, share=None, start_date=None, end_date=None, active=True):
     sess = driver.session()
     sess.run(
-        "MATCH (c:CONTRACT:NAS) WHERE c.id = {pcontract_id} MATCH (n:NASNODE) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)",
+        "MATCH (c:CONTRACT:NAS) WHERE c.id = {pcontract_id} MATCH (n:NAS:NODE) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)",
         {
             "pnode_id": node_id,
             "pcontract_id": contract_id,
@@ -292,7 +292,7 @@ def create_cluster_user(cluster, user_id, email, start_date=None, end_date=None,
 
 
 #Creates a USES relationship so source gives resources to dst_contract.   (destination_contract)-[USES]->(origin_contract)
-def link_contracts_by_use(resource_contract_id, consumer_contract_id, share=None, start_date=None, end_date=None, active=True):
+def link_contracts_by_use(resource_contract_id, consumer_contract_id, share="100%", start_date=None, end_date=None, active=True):
     get_contract(resource_contract_id)
     get_contract(consumer_contract_id)
     sess = driver.session()
@@ -351,7 +351,7 @@ def isActive(n):
 
 
 def is_resource_node(node):
-    return 'HPCNODE' in node['labels']
+    return '' in node['labels']
 
 
 def is_percent_rel(rel):
@@ -398,7 +398,7 @@ def get_tree_from_paths(paths):
 def get_unbroken_paths_to_nodes(contract_id):
     # All paths whose relationships and nodes are all active and not due
     today_num = get_today_num()
-    query = "MATCH p=(x:CONTRACT{id:{pcontract_id}})-[*]->(n:HPCNODE) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) RETURN p"
+    query = "MATCH p=(x:CONTRACT{id:{pcontract_id}})-[*]->(n:NODE) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) RETURN p"
 
     sess = driver.session()
     result = sess.run(query,{"pcontract_id": contract_id, "pdate": today_num})
@@ -559,10 +559,10 @@ def get_today_num():
 def get_contracts_uri_for_nodes(cluster, node_id=None):
     today = get_today_num()
     if not node_id is None:
-        query = "MATCH p=(n:HPCNODE{id:{pnode_id},cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
+        query = "MATCH p=(n:{id:{pnode_id},cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
         params = {'pnode_id': node_id}
     else:
-        query = "MATCH p=(n:HPCNODE{cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
+        query = "MATCH p=(n:{cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
         params = {}
 
     params['pcluster'] = cluster
@@ -622,12 +622,12 @@ def get_nas_contract_user_group(cluster_id, contract_id):
 
 # Rule: ZFS Volumes are Second-Level contracts (NAS->TOP LEVEL CONTRACT-->VOLUMES)
 def get_nas_volume_contracts(cluster_id, node_id):
-    query = "MATCH p=((c:CONTRACT:NAS)-[*2..2]->(n:NASNODE)) WHERE n.id = {pnode_id} AND (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) ))   AND (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
+    query = "MATCH p=((c:CONTRACT:NAS)-[*2..2]->(n:NAS:NODE)) WHERE n.id = {pnode_id} AND (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) ))   AND (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
     pars = {'pdate':get_today_num(), 'pnode_id': node_id}
     data = run_query(query, pars)
-    return [d['c'].properties for d in data]
+    return [dict (d['c'].properties.items() + {'capacity': get_contract_capacity(d['c'].properties['id'])}.items()) for d in data]
 
-# VOLUMENES: MATCH (c:CONTRACT:NAS)-[*2..2]->(n:NASNODE) RETURN c
+# VOLUMENES: MATCH (c:CONTRACT:NAS)-[*2..2]->(n:NAS:NODE) RETURN c
 
 
 #assign_contract_user("leecher", "bernabepanarello", start_date=None, end_date=20180229, active=True)
@@ -649,5 +649,7 @@ def get_nas_volume_contracts(cluster_id, node_id):
 #link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupob","100")
 #link_contracts_by_use("nas_neurus_gerencias_gerencia1","nas_neurus_gerencia1_grupoc","100")
 #assign_contract_user("nas_neurus_gerencia1_grupoa", "gaston")
+#create_nas_contract("nas_neurus_gerencias_gerencia4", "Contrato NAS para Gerencia 4 Cluster Neurus","",20180101)
+#link_contracts_by_use("nas_neurus_gerencias","nas_neurus_gerencias_gerencia4","25%")
 r=get_nas_volume_contracts("neurus", "nas-0-0")
 print r
