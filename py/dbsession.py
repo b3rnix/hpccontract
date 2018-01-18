@@ -59,52 +59,35 @@ def get_contract(contract_id, cluster_id=None):
 
 def create_hpc_node(cluster, node_id, host_name, capacity):
     check_node_doesnt_exists(node_id, cluster)
-    sess = driver.session()
 
-    sess.run(
-            "CREATE (:AHPCNODE:HPC:NODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})",
-            {
+    query = "CREATE (:AHPCNODE:HPC:NODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})"
+    pars =  {
                 "pcluster": cluster,
                 "pid": node_id,
                 "phost_name": host_name,
                 "pcapacity": capacity,
                 "puri": "slurm://c:{0}/n:{1}".format(cluster,node_id)
              }
-             )
-
-    sess.close()
+    run_query(query=query, pars=pars)
 
 def create_nas_node(cluster, node_id, host_name, capacity):
     check_node_doesnt_exists(node_id, cluster)
-    sess = driver.session()
 
-    sess.run(
-            "CREATE (:ANASNODE:NAS:NODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})",
-            {
+    query = "CREATE (:ANASNODE:NAS:NODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})"
+    pars =  {
                 "pcluster": cluster,
                 "pid": node_id,
                 "phost_name": host_name,
                 "pcapacity": capacity,
                 "puri": "nas://c:{0}/n:{1}".format(cluster,node_id)
              }
-             )
 
-    sess.close()
-
+    run_query(query=query, pars=pars)
 
 def create_nas_contract(id, description, uri, start_date=None, end_date=None, active=True):
-    sess = driver.session()
-    result = sess.run("MATCH (n:CONTRACT:NAS) WHERE n.id = {id} "
-                           "RETURN count(*)",
-                           {"id": id})
-
-    if (result.peek()["count(*)"] > 0):
-        raise Exception("Contract already exists")
-
-
-    sess.run(
-            "CREATE (:ANASCONTRACT:CONTRACT:NAS{id:{pid}, description:{pdescription}, start_date:{pstart_date}, end_date:{pend_date}, uri:{puri}, active:{pactive}})",
-            {
+    check_node_doesnt_exists(id, cluster=None)
+    query = "CREATE (:ANASCONTRACT:CONTRACT:NAS{id:{pid}, description:{pdescription}, start_date:{pstart_date}, end_date:{pend_date}, uri:{puri}, active:{pactive}})"
+    pars = {
                 "pid": id,
                 "pdescription": description,
                 "pstart_date": start_date,
@@ -112,11 +95,8 @@ def create_nas_contract(id, description, uri, start_date=None, end_date=None, ac
                 "puri": uri,
                 "pactive": active
              }
-             )
 
-    sess.close()
-
-
+    run_query(query=query, pars=pars)
 
 
 def create_entity(entity_id, entity_name, entity_type):
