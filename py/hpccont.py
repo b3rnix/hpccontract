@@ -1,7 +1,7 @@
 #!/home/berna/anaconda2/bin/python
 import argparse
 import sys
-from dbsession import *
+from api import *
 
 
 def get_create_hpc_node_parser():
