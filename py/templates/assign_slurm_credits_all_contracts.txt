@@ -1,0 +1,5 @@
+# Command to assign credits to all partitions
+%for x in contracts:
+sbank-reset -c ${cluster} -a ${x['account']}
+sbank-deposit -c ${cluster} -a ${x['account']} -t ${x['credits']}
+%endfor

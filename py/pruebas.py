@@ -75,4 +75,19 @@ from api import *
 #link_contracts_by_use("nas_neurus_gerencias","nas_neurus_gerencias_gerencia4","25%")
 #r=get_nas_volume_contracts("neurus", "nas-0-0")
 
-check_no_overlapping_relationship("hpcreactores", "compute-1-1", "USES")
+#check_no_overlapping_relationship("hpcreactores", "compute-1-1", "USES")
+#get_relationships("bernabepanarello","leecher")
+
+#from mako.template import Template
+#mytemplate = Template(filename='./templates/assign_slurm_credits.txt')
+#print(mytemplate.render( cluster='neurus', account='reactores', credits =80, partition='reactores'))
+#data = get_credits_for_all_hpc_contracts()
+#pass
+
+
+from mako.template import Template
+mytemplate = Template(filename='./templates/assign_slurm_credits_all_contracts.txt')
+data = get_credits_for_all_hpc_contracts()
+print(mytemplate.render( cluster='neurus', contracts=data))
+
+pass

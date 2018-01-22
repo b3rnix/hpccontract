@@ -24,6 +24,22 @@ def get_slurm_data_from_uri(uri):
         "account": m.groups()[2]
     }
 
+def get_relationships(node1, node2):
+    query = "MATCH (n{id:{pnode1_id}})-[r]-(m{id:{pnode2_id}}) RETURN n.id,r,m.id"
+    pars = {'pnode1_id': node1, 'pnode2_id': node2}
+    data = run_query(query=query, pars=pars)
+    ret = [{'n1': d['n.id'], 'n2': d['m.id'], 'r': d['r'].properties} for d in data]
+    return ret
+
+
+def deep_delete_node(node_id, cluster):
+    #check_node_doesnt_exists(node_id=node_id,cluster_id=cluster)
+    query = "MATCH (n{id:{pnode_id}}) WHERE (NOT exists(n.cluster) OR {pcluster_id} IS NULL OR n.cluster={pcluster_id}) MATCH (n)-[r1]->() MATCH ()-[r2]->(n) DELETE r1 DELETE r2 DELETE n"
+    pars = {'pnode_id': node_id, 'pcluster_id': cluster}
+    run_query(query=query, pars=pars)
+
+
+
 def check_no_overlapping_relationship(src_node, dst_node, relation_name, start_date=0, end_date=99999999, active=True):
     # Ojo, no chequea el cluster. Si hay dos nodos con el mismo Id en distinto cluster pegandole a otro nodo va a fallar la validacion!!
     query = "MATCH (y{id:'"+src_node+"'})-[r:" + str.upper(relation_name) + "]->(x{id:'"+dst_node+"'}) WHERE (((NOT exists(r.start_date) OR r.start_date <= {pstart_date}) AND (NOT exists(r.end_date) OR r.end_date >= {pstart_date})) OR ((NOT exists(r.start_date) OR r.start_date <= {pend_date}) AND (NOT exists(r.end_date) OR r.end_date >= {pend_date}))) AND (NOT exists(r.active) OR r.active) RETURN r "
@@ -33,14 +49,26 @@ def check_no_overlapping_relationship(src_node, dst_node, relation_name, start_d
         raise Exception("Relationship can not de added.  An active time-overlapping relationship of the same type and between the same nodes already exists. Consider disabling the conflicting relationship.")
 
 
+def validate_relationship(src_node, dst_node, relation_name, start_date=0, end_date=99999999, active=True):
+    if start_date > end_date:
+        raise Exception(
+            "Relationship\'s start_date is set in the future of end_date.")
+
+    if src_node == dst_node:
+        raise Exception(
+            "Self-relationships are currently not allowed.")
+
+    check_no_overlapping_relationship(src_node, dst_node, relation_name, start_date=0, end_date=99999999, active=True)
+
+
 def check_node_doesnt_exists(node_id, cluster_id):
     today_num = get_today_num()
     query = "MATCH (n{id:{pnode_id}}) WHERE (NOT exists(n.cluster) OR {pcluster_id} IS NULL OR n.cluster={pcluster_id}) AND (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) RETURN n"
-    pars = {'pdate': today_num, 'pnode_id': node_id,'pcluster_id': cluster_id}
+    pars = {'pdate': today_num, 'pnode_id': node_id, 'pcluster_id': cluster_id}
     data = run_query(query,pars)
     if len(data) > 0:
         raise Exception(
-            "An active node with the same id already exists.")
+            "Node already exist.")
 
 def get_contract(contract_id, cluster_id=None):
     sess = driver.session()
@@ -61,7 +89,7 @@ def create_hpc_node(cluster, node_id, host_name, capacity):
     check_node_doesnt_exists(node_id, cluster)
 
     query = "CREATE (:AHPCNODE:HPC:NODE{cluster:{pcluster}, id:{pid}, host_name:{phost_name}, capacity:{pcapacity},uri:{puri}})"
-    pars =  {
+    pars = {
                 "pcluster": cluster,
                 "pid": node_id,
                 "phost_name": host_name,
@@ -100,13 +128,14 @@ def create_nas_contract(id, description, uri, start_date=None, end_date=None, ac
 
 
 def create_entity(entity_id, entity_name, entity_type):
+    check_node_doesnt_exists(entity_id, cluster=None)
     sess = driver.session()
     result = sess.run("MATCH (n) WHERE n.id = {id} "
                            "RETURN count(*)",
                            {"id": entity_id})
 
     if (result.peek()["count(*)"] > 0):
-        raise Exception("Entity already exists")
+        raise Exception("Entity already exists.")
 
 
     sess.run(
@@ -122,6 +151,7 @@ def create_entity(entity_id, entity_name, entity_type):
 
 
 def create_hpc_contract(id, description, uri, start_date=None, end_date=None, active=True):
+    check_node_doesnt_exists(id, cluster_id=None)
     sess = driver.session()
     result = sess.run("MATCH (n:CONTRACT:HPC) WHERE n.id = {id} "
                            "RETURN count(*)",
@@ -155,7 +185,7 @@ def assign_hpc_node_to_contract(node_id, contract_id, share=None, start_date=Non
 
     get_contract(contract_id=contract_id)
     get_node(node_id=node_id)
-    check_no_overlapping_relationship(src_node=node_id, dst_node=contract_id,relation_name="USES",start_date=start_date,end_date=end_date,active=active)
+    validate_relationship(src_node=node_id, dst_node=contract_id,relation_name="USES", start_date=start_date,end_date=end_date,active=active)
 
     query = "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (n:) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)"
     pars = {
@@ -174,7 +204,7 @@ def assign_nas_node_to_contract(node_id, contract_id, share="100%", start_date=N
 
     get_node(node_id)
     get_contract(contract_id)
-    check_no_overlapping_relationship(src_node=contract_id, dst_node=node_id, relation_name="USES",
+    validate_relationship(src_node=contract_id, dst_node=node_id, relation_name="USES",
                                       start_date=start_date, end_date=end_date, active=active)
 
 
@@ -212,7 +242,7 @@ def assign_sub_contract(child_contract_id, parent_contract_id, share=None, start
 
 
 def assign_contract_administrator(contract_id, person_id, start_date=None, end_date=None, active=True):
-    check_no_overlapping_relationship(src_node=person_id, dst_node=contract_id, relation_name="ADMINISTRATOR",start_date=start_date,end_date=end_date,active=active)
+    validate_relationship(src_node=person_id, dst_node=contract_id, relation_name="ADMINISTRATOR",start_date=start_date,end_date=end_date,active=active)
     run_query(
         query=
         "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (p:PERSON) WHERE p.id = {pperson_id} CREATE (p)-[:ADMINISTRATOR{start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(c)",
@@ -229,7 +259,7 @@ def assign_contract_administrator(contract_id, person_id, start_date=None, end_d
 
 
 def assign_contract_owner(contract_id, entity_id, entity_type):
-    check_no_overlapping_relationship(src_node=entity_id, dst_node=contract_id, relation_name="OWNER")
+    validate_relationship(src_node=entity_id, dst_node=contract_id, relation_name="OWNER")
     run_query(
         query=
         "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (p:" + entity_type + ") WHERE p.id = {pentity_id} CREATE (p)-[:OWNER]->(c)",
@@ -243,7 +273,7 @@ def assign_contract_owner(contract_id, entity_id, entity_type):
 
 
 def assign_contract_user(contract_id, entity_id, start_date=None, end_date=None, active=True):
-    check_no_overlapping_relationship(src_node=entity_id, dst_node=contract_id, relation_name="USES",start_date=start_date,end_date=end_date,active=active)
+    validate_relationship(src_node=entity_id, dst_node=contract_id, relation_name="USES",start_date=start_date,end_date=end_date,active=active)
     run_query(
         query=
         "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (p:" + "CLUSTERUSER" + ") WHERE p.id = {pentity_id} CREATE (p)-[:USES{start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(c)",
@@ -293,7 +323,7 @@ def create_cluster_user(cluster, user_id, email, start_date=None, end_date=None,
 def link_contracts_by_use(resource_contract_id, consumer_contract_id, share="100%", start_date=None, end_date=None, active=True):
     get_contract(resource_contract_id)
     get_contract(consumer_contract_id)
-    check_no_overlapping_relationship(src_node=consumer_contract_id, dst_node=resource_contract_id, relation_name="USES",
+    validate_relationship(src_node=consumer_contract_id, dst_node=resource_contract_id, relation_name="USES",
                                       start_date=start_date, end_date=end_date, active=active)
 
 
@@ -404,22 +434,22 @@ def get_contract_capacity(contract_id):
 
 
 
-def generate_slurm_credits_command(contract_id, days):
+#def generate_slurm_credits_command(contract_id, days):
+    #
+    #    contract = get_contract(contract_id)
+    #if not "uri" in contract.properties:
+    #    raise Exception("A contract to generate a SLURM command must have a SLURM URI")
 
-    contract = get_contract(contract_id)
-    if not "uri" in contract.properties:
-        raise Exception("A contract to generate a SLURM command must have a SLURM URI")
+    #uri = contract.properties["uri"]
+    #slurm_data = get_slurm_data_from_uri(uri)
+    #capacity = get_available_capacity_for_contract(contract_id=contract_id)
+    #credit = capacity * days * 24
 
-    uri = contract.properties["uri"]
-    slurm_data = get_slurm_data_from_uri(uri)
-    capacity = get_available_capacity_for_contract(contract_id=contract_id)
-    credit = capacity * days * 24
+    #print "Command to assign credits to contract {0}".format(contract_id)
+    #print "sbank-reset -c {0} -a {1}".format(slurm_data["cluster"], slurm_data["account"])
+    #print "sbank-deposit -c {0} -a {1} -t {2}".format(slurm_data["cluster"], slurm_data["account"], credit)
 
-    print "Command to assign credits to contract {0}".format(contract_id)
-    print "sbank-reset -c {0} -a {1}".format(slurm_data["cluster"], slurm_data["account"])
-    print "sbank-deposit -c {0} -a {1} -t {2}".format(slurm_data["cluster"], slurm_data["account"], credit)
-
-    pass
+#pass
 
 
 
@@ -458,9 +488,17 @@ def get_contracts_list(contract_type=None):
 
 def get_credits_for_all_hpc_contracts():
     contracts = get_contracts_list("HPC")
-    credits = {}
-    for k in contracts.keys():
-        credits[k] = get_hpc_contract_credits(k)['credits']
+
+    credits = []
+    credits_aux = [{'id': k['id'], 'uri': k['uri'], 'credits': get_hpc_contract_credits(k['id'])['credits']} for k in contracts.values()]
+    for x in credits_aux:
+        uri_data = get_slurm_data_from_uri(x['uri'])
+        if uri_data['partition'] != None and uri_data['account'] != None:
+            credits.append({'id': x['id'], 'uri': x['uri'], 'credits': x['credits'], 'account': uri_data['account'], 'partition': uri_data['partition']})
+
+
+#    for k in contracts.keys():
+#        credits[k] = get_hpc_contract_credits(k)['credits']
 
 
     return credits
@@ -535,7 +573,7 @@ def get_slurm_partition_users(partition):
 
 
 #Rule: When a User as link to a NAS contract, then It will have R/W access to the resource pointed to that contract's
-# URI. Access is granted by adding the user to a group, whose name is determined as a function of the URI.
+# URI. Access is granted by adding a given user to a group, whose name is determined as a function of the URI.
 def get_nas_contract_group_name(contract):
     return "nas_grp_" + str(contract.id)
 
@@ -548,7 +586,7 @@ def get_nas_group_members(cluster_id, contract_id):
 
 def get_nas_contract_user_group(cluster_id, contract_id):
     contract = get_contract(contract_id, cluster_id)
-    group_name= get_nas_contract_group_name(contract)
+    group_name = get_nas_contract_group_name(contract)
     members = get_nas_group_members(cluster_id, contract_id)
     return {'group_name': group_name, 'members': members }
 
@@ -561,7 +599,7 @@ def get_nas_volume_contracts(cluster_id, node_id):
     return [dict (d['c'].properties.items() + {'capacity': get_contract_capacity(d['c'].properties['id'])}.items()) for d in data]
 
 
-#check_no_overlapping_relationship("hpcreactores", "compute-1-1", "USES")
+#validate_relationship("hpcreactores", "compute-1-1", "USES")
 
 
 #print r

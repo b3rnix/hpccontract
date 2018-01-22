@@ -1,0 +1,3 @@
+# Command to assign credits to partition ${partition}
+sbank-reset -c ${cluster} -a ${account}
+sbank-deposit -c ${cluster} -a ${account} -t ${credits}
