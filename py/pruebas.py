@@ -85,6 +85,27 @@ from api import *
 #pass
 
 
+#create_hpc_contract(id="hpcreactores",description="Proyecto Reactores",start_date=20170701, uri="slurm://c:neurus/p:reactores/a:reactores", active=True )
+#assign_hpc_node_to_contract(node_id="compute-1-0", contract_id="hpcreactores", share="80%", start_date=20170701)
+#assign_hpc_node_to_contract(node_id="compute-1-1", contract_id="hpcreactores", share="80%", start_date=20170701)
+#assign_hpc_node_to_contract(node_id="compute-1-2", contract_id="hpcreactores", share="80%", start_date=20170701)
+
+#assign_hpc_node_to_contract(node_id="compute-1-0", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
+#assign_hpc_node_to_contract(node_id="compute-1-1", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
+#assign_hpc_node_to_contract(node_id="compute-1-2", contract_id="hpc_bancarizada", share="20%", start_date=20170701)
+#create_entity("rios@cnea.gov.ar", "Rios", "PERSON")
+#assign_contract_administrator(contract_id="hpcreactores", person_id="rios@cnea.gov.ar", start_date=20170801, end_date=20190801)
+
+
+
+
+#create_hpc_contract(id="leecher",description="Leecher de bancarizada",start_date=20170701,uri="slurm://c:neurus/p:bancarizada/a:leecher", active=True )
+#link_contracts_by_use("hpcreactores", "leecher", share="50%", start_date=20170701, end_date=20190101, active=True)
+
+
+assign_hpc_node_to_contract(node_id="nas-0-0", contract_id="hpcreactores", share="80%", start_date=20170701)
+
+get_hpc_contract_credits('leecher')
 from mako.template import Template
 mytemplate = Template(filename='./templates/assign_slurm_credits_all_contracts.txt')
 data = get_credits_for_all_hpc_contracts()

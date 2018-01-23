@@ -50,9 +50,10 @@ def check_no_overlapping_relationship(src_node, dst_node, relation_name, start_d
 
 
 def validate_relationship(src_node, dst_node, relation_name, start_date=0, end_date=99999999, active=True):
-    if start_date > end_date:
-        raise Exception(
-            "Relationship\'s start_date is set in the future of end_date.")
+    if (start_date != None and end_date != None):
+        if start_date > end_date:
+            raise Exception(
+                "Relationship\'s start_date is set in the future of end_date.")
 
     if src_node == dst_node:
         raise Exception(
@@ -128,7 +129,7 @@ def create_nas_contract(id, description, uri, start_date=None, end_date=None, ac
 
 
 def create_entity(entity_id, entity_name, entity_type):
-    check_node_doesnt_exists(entity_id, cluster=None)
+    check_node_doesnt_exists(entity_id, cluster_id=None)
     sess = driver.session()
     result = sess.run("MATCH (n) WHERE n.id = {id} "
                            "RETURN count(*)",
@@ -178,16 +179,28 @@ def create_hpc_contract(id, description, uri, start_date=None, end_date=None, ac
 #create_hpc_contract(id="hpc_bancarizada",description="Contrato de Cuenta Bancarizada HPC para Neurus",start_date=20170701,uri="slurm://neurus/bancarizada", active=True )
 
 def get_node(node_id):
-    pass
+    query = "MATCH (n{id:{pnode_id}}) RETURN n"
+    pars = {'pnode_id': node_id}
+    data = run_query(query=query,pars=pars)
+    if len(data) == 0:
+        raise Exception(
+            "Node <{0}> does not exist.".format(node_id))
+    return data[0]['n']
 
 
 def assign_hpc_node_to_contract(node_id, contract_id, share=None, start_date=None, end_date=None, active=True):
 
-    get_contract(contract_id=contract_id)
-    get_node(node_id=node_id)
+    contract = get_contract(contract_id=contract_id)
+    node = get_node(node_id=node_id)
+
+    if not ('AHPCCONTRACT' in contract.labels and 'AHPCNODE' in node.labels):
+        raise Exception(
+            "HPC contract node assigments can only be created between HPC contracts and HPC nodes.")
+
+
     validate_relationship(src_node=node_id, dst_node=contract_id,relation_name="USES", start_date=start_date,end_date=end_date,active=active)
 
-    query = "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (n:) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)"
+    query = "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (n:AHPCNODE) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)"
     pars = {
             "pnode_id": node_id,
             "pcontract_id": contract_id,
@@ -202,8 +215,13 @@ def assign_hpc_node_to_contract(node_id, contract_id, share=None, start_date=Non
 
 def assign_nas_node_to_contract(node_id, contract_id, share="100%", start_date=None, end_date=None, active=True):
 
-    get_node(node_id)
-    get_contract(contract_id)
+    contract = get_contract(contract_id=contract_id)
+    node = get_node(node_id=node_id)
+
+    if not ('ANASCONTRACT' in contract.labels and 'ANASNODE' in node.labels):
+        raise Exception(
+            "NAS contract node assigments can only be created between NAS contracts and NAS nodes.")
+
     validate_relationship(src_node=contract_id, dst_node=node_id, relation_name="USES",
                                       start_date=start_date, end_date=end_date, active=active)
 
@@ -371,7 +389,7 @@ def isActive(n):
     return active
 
 def is_resource_node(node):
-    return '' in node['labels']
+    return 'AHPCNODE' in node['labels'] or 'ANASNODE' in node['labels']
 
 
 def is_percent_rel(rel):
@@ -475,7 +493,7 @@ def get_contracts_list(contract_type=None):
         type_prefix = ":" + str.upper(contract_type)
 
 
-    query = "MATCH (c:CONTRACT" + type_prefix +  ") WHERE (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND c.active  RETURN c"
+    query = "MATCH (c:CONTRACT" + type_prefix +  ") WHERE (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
     pars = {"pdate": today_num}
 
     data = run_query(query=query,pars=pars)
