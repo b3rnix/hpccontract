@@ -103,12 +103,10 @@ from api import *
 #link_contracts_by_use("hpcreactores", "leecher", share="50%", start_date=20170701, end_date=20190101, active=True)
 
 
-assign_hpc_node_to_contract(node_id="nas-0-0", contract_id="hpcreactores", share="80%", start_date=20170701)
 
-get_hpc_contract_credits('leecher')
 from mako.template import Template
 mytemplate = Template(filename='./templates/assign_slurm_credits_all_contracts.txt')
-data = get_credits_for_all_hpc_contracts()
+data = get_credits_for_all_hpc_contracts(day_multiplier=30)
 print(mytemplate.render( cluster='neurus', contracts=data))
 
 pass

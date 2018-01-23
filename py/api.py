@@ -62,9 +62,10 @@ def validate_relationship(src_node, dst_node, relation_name, start_date=0, end_d
     check_no_overlapping_relationship(src_node, dst_node, relation_name, start_date=0, end_date=99999999, active=True)
 
 
-def check_node_doesnt_exists(node_id, cluster_id):
-    today_num = get_today_num()
-    query = "MATCH (n{id:{pnode_id}}) WHERE (NOT exists(n.cluster) OR {pcluster_id} IS NULL OR n.cluster={pcluster_id}) AND (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) RETURN n"
+def check_node_doesnt_exists(node_id, cluster_id, qdate=None):
+    today_num = qdate or get_today_num()
+    #query = "MATCH (n{id:{pnode_id}}) WHERE (NOT exists(n.cluster) OR {pcluster_id} IS NULL OR n.cluster={pcluster_id}) AND (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) RETURN n"
+    query = "MATCH (n{id:{pnode_id}}) WHERE NOT exists(n.cluster) OR {pcluster_id} IS NULL OR n.cluster={pcluster_id} RETURN n"
     pars = {'pdate': today_num, 'pnode_id': node_id, 'pcluster_id': cluster_id}
     data = run_query(query,pars)
     if len(data) > 0:
@@ -382,12 +383,6 @@ def update_node(id, kwargs):
 
     run_query("MATCH (n) WHERE n.id = {id} " + " ".join(set_keys), set_values)
 
-def isActive(n):
-    current_date = datetime.date.year * 10000 + datetime.date.month * 100 + datetime.date.day
-    active = (not hasattr(n, 'start_date') or n.start_date >= current_date) and (not hasattr(n, 'end_date') or n.end_date <= current_date)
-    active = active and (not hasattr(n, 'active') or n.active)
-    return active
-
 def is_resource_node(node):
     return 'AHPCNODE' in node['labels'] or 'ANASNODE' in node['labels']
 
@@ -433,9 +428,9 @@ def get_tree_from_paths(paths):
 
     return tree
 
-def get_unbroken_paths_to_nodes(contract_id):
+def get_unbroken_paths_to_nodes(contract_id,qdate=None):
     # All paths whose relationships and nodes are all active and not due
-    today_num = get_today_num()
+    today_num = qdate or get_today_num()
     query = "MATCH p=(x:CONTRACT{id:{pcontract_id}})-[*]->(n:NODE) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) RETURN p"
     pars = {"pcontract_id": contract_id, "pdate": today_num}
     data = run_query(query=query, pars=pars)
@@ -444,36 +439,15 @@ def get_unbroken_paths_to_nodes(contract_id):
     return data[0]['p'].start.id, data
 
 
-def get_contract_capacity(contract_id):
-    id, paths = get_unbroken_paths_to_nodes(contract_id)
+def get_contract_capacity(contract_id,qdate=None):
+    id, paths = get_unbroken_paths_to_nodes(contract_id, qdate=qdate)
     tree = get_tree_from_paths(paths)
     capacity = get_capacity_from_tree(tree, tree[id])
     return capacity
 
-
-
-#def generate_slurm_credits_command(contract_id, days):
-    #
-    #    contract = get_contract(contract_id)
-    #if not "uri" in contract.properties:
-    #    raise Exception("A contract to generate a SLURM command must have a SLURM URI")
-
-    #uri = contract.properties["uri"]
-    #slurm_data = get_slurm_data_from_uri(uri)
-    #capacity = get_available_capacity_for_contract(contract_id=contract_id)
-    #credit = capacity * days * 24
-
-    #print "Command to assign credits to contract {0}".format(contract_id)
-    #print "sbank-reset -c {0} -a {1}".format(slurm_data["cluster"], slurm_data["account"])
-    #print "sbank-deposit -c {0} -a {1} -t {2}".format(slurm_data["cluster"], slurm_data["account"], credit)
-
-#pass
-
-
-
 # Consultas
-def get_hpc_contract_credits(contract_id):
-    id, paths = get_unbroken_paths_to_nodes(contract_id)
+def get_hpc_contract_credits(contract_id,qdate=None):
+    id, paths = get_unbroken_paths_to_nodes(contract_id, qdate=qdate)
     if paths == []:
         c = 0
     else:
@@ -485,8 +459,8 @@ def get_hpc_contract_credits(contract_id):
 
     return {'credits': c}
 
-def get_contracts_list(contract_type=None):
-    today_num = get_today_num()
+def get_contracts_list(contract_type=None, qdate=None):
+    today_num = qdate or get_today_num()
 
     type_prefix = ""
     if not contract_type is None:
@@ -504,15 +478,15 @@ def get_contracts_list(contract_type=None):
 
     return ret
 
-def get_credits_for_all_hpc_contracts():
-    contracts = get_contracts_list("HPC")
+def get_credits_for_all_hpc_contracts(day_multiplier=1,qdate=None):
+    contracts = get_contracts_list("HPC",qdate)
 
     credits = []
-    credits_aux = [{'id': k['id'], 'uri': k['uri'], 'credits': get_hpc_contract_credits(k['id'])['credits']} for k in contracts.values()]
+    credits_aux = [{'id': k['id'], 'uri': k['uri'], 'credits': get_hpc_contract_credits(k['id'],qdate=qdate)['credits']} for k in contracts.values()]
     for x in credits_aux:
         uri_data = get_slurm_data_from_uri(x['uri'])
         if uri_data['partition'] != None and uri_data['account'] != None:
-            credits.append({'id': x['id'], 'uri': x['uri'], 'credits': x['credits'], 'account': uri_data['account'], 'partition': uri_data['partition']})
+            credits.append({'id': x['id'], 'uri': x['uri'], 'credits': x['credits'] * day_multiplier, 'account': uri_data['account'], 'partition': uri_data['partition']})
 
 
 #    for k in contracts.keys():
@@ -522,8 +496,8 @@ def get_credits_for_all_hpc_contracts():
     return credits
 
 
-def get_node_list(node_type):
-    today_num = get_today_num()
+def get_node_list(node_type, qdate=None):
+    today_num = qdate or get_today_num()
 
     query = "MATCH (c:"+str.upper(node_type)+"NODE) WHERE (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
 
@@ -545,8 +519,8 @@ def get_today_num():
     return today_num
 
 
-def get_contracts_uri_for_nodes(cluster, node_id=None):
-    today = get_today_num()
+def get_contracts_uri_for_nodes(cluster, node_id=None, qdate=None):
+    today_num = qdate or get_today_num()
     if not node_id is None:
         query = "MATCH p=(n:{id:{pnode_id},cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
         params = {'pnode_id': node_id}
@@ -555,7 +529,7 @@ def get_contracts_uri_for_nodes(cluster, node_id=None):
         params = {}
 
     params['pcluster'] = cluster
-    params['pdate'] = today
+    params['pdate'] = today_num
     data = run_query(query, params)
 
     ret = {}
@@ -583,9 +557,10 @@ def get_hpc_partitions_for_nodes(cluster, node_id=None):
 
     return partitions
 
-def get_slurm_partition_users(partition):
+def get_slurm_partition_users(partition,qdate=None):
+    today_num = qdate or get_today_num()
     query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:HPC:CONTRACT) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) AND (c.uri =~ {puripat}) RETURN u,c,r"
-    pars = {'pdate':get_today_num(),'puripat': '.*/p:' + partition + '.*'}
+    pars = {'pdate':today_num,'puripat': '.*/p:' + partition + '.*'}
     data = run_query(query,pars)
     return [{'user': d['u'].properties, 'relation': d['r'].properties} for d in data]
 
@@ -595,9 +570,10 @@ def get_slurm_partition_users(partition):
 def get_nas_contract_group_name(contract):
     return "nas_grp_" + str(contract.id)
 
-def get_nas_group_members(cluster_id, contract_id):
+def get_nas_group_members(cluster_id, contract_id,qdate=None):
+    today_num = qdate or get_today_num()
     query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:CONTRACT:NAS) WHERE c.id = 'nas_neurus_gerencia1_grupoa' AND (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) RETURN u"
-    pars = {'pdate':get_today_num(), 'contract_id': contract_id}
+    pars = {'pdate': today_num, 'contract_id': contract_id}
     data = run_query(query, pars)
     return [d['u'].properties for d in data]
 
@@ -610,9 +586,10 @@ def get_nas_contract_user_group(cluster_id, contract_id):
 
 
 # Rule: ZFS Volumes are Second-Level contracts (NAS->TOP LEVEL CONTRACT-->VOLUMES)
-def get_nas_volume_contracts(cluster_id, node_id):
+def get_nas_volume_contracts(cluster_id, node_id, qdate=None):
+    today_num = qdate or get_today_num()
     query = "MATCH p=((c:CONTRACT:NAS)-[*2..2]->(n:ANASNODE)) WHERE n.id = {pnode_id} AND (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) ))   AND (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
-    pars = {'pdate':get_today_num(), 'pnode_id': node_id}
+    pars = {'pdate':today_num, 'pnode_id': node_id}
     data = run_query(query, pars)
     return [dict (d['c'].properties.items() + {'capacity': get_contract_capacity(d['c'].properties['id'])}.items()) for d in data]
 
