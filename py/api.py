@@ -115,7 +115,7 @@ def create_nas_node(cluster, node_id, host_name, capacity):
     run_query(query=query, pars=pars)
 
 def create_nas_contract(id, description, uri, start_date=None, end_date=None, active=True):
-    check_node_doesnt_exists(id, cluster=None)
+    check_node_doesnt_exists(id, cluster_id=None)
     query = "CREATE (:ANASCONTRACT:CONTRACT:NAS{id:{pid}, description:{pdescription}, start_date:{pstart_date}, end_date:{pend_date}, uri:{puri}, active:{pactive}})"
     pars = {
                 "pid": id,
@@ -572,8 +572,8 @@ def get_nas_contract_group_name(contract):
 
 def get_nas_group_members(cluster_id, contract_id,qdate=None):
     today_num = qdate or get_today_num()
-    query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:CONTRACT:NAS) WHERE c.id = 'nas_neurus_gerencia1_grupoa' AND (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) RETURN u"
-    pars = {'pdate': today_num, 'contract_id': contract_id}
+    query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:CONTRACT:NAS) WHERE c.id = {pcontract_id} AND (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) RETURN u"
+    pars = {'pdate': today_num, 'pcontract_id': contract_id}
     data = run_query(query, pars)
     return [d['u'].properties for d in data]
 
