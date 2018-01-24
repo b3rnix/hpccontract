@@ -4,7 +4,9 @@ import re
 import config
 
 driver = GraphDatabase.driver(config.neo4j_url, auth=basic_auth(config.neo4j_user, config.neo4j_passwd))
-slurmuriregex  = re.compile('slurm:\/\/c:([a-zA-Z0-9]+)\/p:([a-zA-Z0-9]+)\/a:([a-zA-Z0-9]+)')
+slurmuriregex = re.compile('slurm:\/\/c:([a-zA-Z0-9]+)\/p:([a-zA-Z0-9]+)\/a:([a-zA-Z0-9]+)')
+shareregex = re.compile('([0-9]+)%?')
+
 def run_query(query, pars):
     sess = driver.session()
     result = sess.run(query, pars)
@@ -49,7 +51,25 @@ def check_no_overlapping_relationship(src_node, dst_node, relation_name, start_d
         raise Exception("Relationship can not de added.  An active time-overlapping relationship of the same type and between the same nodes already exists. Consider disabling the conflicting relationship.")
 
 
+def validate_date(date_num):
+    if not date_num is None:
+        try:
+            y = date_num / 10000
+            r = date_num % 10000
+            m = r / 100
+            r = r % 100
+            d = r
+            datetime.date(y,m,d)
+        except:
+            raise Exception(
+                "The specified date {0} is invalid.".format(date_num))
+
+
+
 def validate_relationship(src_node, dst_node, relation_name, start_date=0, end_date=99999999, active=True):
+    validate_date(start_date)
+    validate_date(end_date)
+
     if (start_date != None and end_date != None):
         if start_date > end_date:
             raise Exception(
@@ -115,6 +135,8 @@ def create_nas_node(cluster, node_id, host_name, capacity):
     run_query(query=query, pars=pars)
 
 def create_nas_contract(id, description, uri, start_date=None, end_date=None, active=True):
+    validate_date(start_date)
+    validate_date(end_date)
     check_node_doesnt_exists(id, cluster_id=None)
     query = "CREATE (:ANASCONTRACT:CONTRACT:NAS{id:{pid}, description:{pdescription}, start_date:{pstart_date}, end_date:{pend_date}, uri:{puri}, active:{pactive}})"
     pars = {
@@ -153,6 +175,8 @@ def create_entity(entity_id, entity_name, entity_type):
 
 
 def create_hpc_contract(id, description, uri, start_date=None, end_date=None, active=True):
+    validate_date(start_date)
+    validate_date(end_date)
     check_node_doesnt_exists(id, cluster_id=None)
     sess = driver.session()
     result = sess.run("MATCH (n:CONTRACT:HPC) WHERE n.id = {id} "
@@ -189,6 +213,15 @@ def get_node(node_id):
     return data[0]['n']
 
 
+
+def parse_share(share_str):
+    m = shareregex.match(share_str)
+    if m == None:
+        raise Exception("Invalid share specified")
+
+    return m.groups()[0]
+
+
 def assign_hpc_node_to_contract(node_id, contract_id, share=None, start_date=None, end_date=None, active=True):
 
     contract = get_contract(contract_id=contract_id)
@@ -200,6 +233,10 @@ def assign_hpc_node_to_contract(node_id, contract_id, share=None, start_date=Non
 
 
     validate_relationship(src_node=node_id, dst_node=contract_id,relation_name="USES", start_date=start_date,end_date=end_date,active=active)
+
+    if not share is None:
+        parse_share(share)
+
 
     query = "MATCH (c:CONTRACT) WHERE c.id = {pcontract_id} MATCH (n:AHPCNODE) WHERE n.id = {pnode_id} CREATE (c)-[:USES{share:{pshare},start_date:{pstart_date},end_date:{pend_date}, active:{pactive}}]->(n)"
     pars = {
@@ -311,6 +348,8 @@ def assign_contract_user(contract_id, entity_id, start_date=None, end_date=None,
 
 
 def create_cluster_user(cluster, user_id, email, start_date=None, end_date=None, active=True):
+    validate_date(start_date)
+    validate_date(end_date)
     sess = driver.session()
     result = sess.run("MATCH (n:USER) WHERE n.id = {pid} AND n.cluster = {pcluster}"
                            "RETURN count(*)",
@@ -345,6 +384,9 @@ def link_contracts_by_use(resource_contract_id, consumer_contract_id, share="100
     validate_relationship(src_node=consumer_contract_id, dst_node=resource_contract_id, relation_name="USES",
                                       start_date=start_date, end_date=end_date, active=active)
 
+
+    if not share is None:
+        parse_share(share)
 
     run_query(
         query=
