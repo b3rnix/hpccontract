@@ -104,13 +104,27 @@ from api import *
 
 
 
+
+#########################################################################################################################
+
+#Usuarios de una particion
+#print get_slurm_partition_users('bancarizada')
+
+#########################################################################################################################
+
+#Ejemplo de generacion de script slurm para asignar creditos
 #from mako.template import Template
 #mytemplate = Template(filename='./templates/assign_slurm_credits_all_contracts.txt')
 #data = get_credits_for_all_hpc_contracts(day_multiplier=30)
 #print(mytemplate.render( cluster='neurus', contracts=data))
 
-#pass
+#########################################################################################################################
 
-#MATCH p=(x:CONTRACT{id:{pcontract_id}})-[*]->(n) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) AND (exists(n.uri) AND NOT n.uri =~ '.*\{parent\}.*')  RETURN p
+#Contratos para el NAS-0-0 - 2do nivel respecto del NAS.  Esto es para el caso particular del arreglo del NAS de gerencias
+#print get_nas_volume_contracts('neurus', 'nas-0-0', qdate=None)
+#get_auto_uri("nas_neurus_gerencia1_grupoa")
 
-get_auto_uri("nas_neurus_gerencia1_grupoa")
+#########################################################################################################################
+
+#Grupos de un contrato NAS
+#print get_nas_group_members("neurus", "nas_neurus_gerencia1_grupoa",qdate=None)
