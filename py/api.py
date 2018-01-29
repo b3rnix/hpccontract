@@ -26,6 +26,40 @@ def get_slurm_data_from_uri(uri):
         "account": m.groups()[2]
     }
 
+
+def get_auto_uri(contract_id, qdate=None):
+    # Strcuture: (ANASNODE)->(GENERIC CONTRACT)->(VOLUMES)*->(SUBDIR*)->(SUBDIR*)....
+    # 1) Determine the (only) path from the contract to a unique NAS
+
+    #contract = get_contract(contract_id)
+    uri = "{parent}"
+    if not uri.count("parent"):
+        return uri
+
+    paths = get_unbroken_paths_to_node_with_base_uri(contract_id,qdate=qdate)[1]
+
+    if not paths:
+        raise Exception("URI can not be built automatically. There's no path to any node with absolute URI.")
+
+    #TODO: Ver si esta condici{on se cumple para todos los casos que importan
+    if len (paths) > 1:
+        raise Exception("URI can not be built automatically. The contract node has multiple ascending paths.")
+
+    path = paths[0]['p']
+
+    for i in range(len(path.nodes)):
+        if 'uri' in path.nodes[i].properties:
+            if len(path.nodes[i].properties['uri']) > 0:
+                uri = uri.replace("{parent}", path.nodes[i].properties['uri'])
+
+    return uri
+
+ #   for in in range(path)
+
+
+
+
+
 def get_relationships(node1, node2):
     query = "MATCH (n{id:{pnode1_id}})-[r]-(m{id:{pnode2_id}}) RETURN n.id,r,m.id"
     pars = {'pnode1_id': node1, 'pnode2_id': node2}
@@ -481,6 +515,19 @@ def get_unbroken_paths_to_nodes(contract_id,qdate=None):
     return data[0]['p'].start.id, data
 
 
+def get_unbroken_paths_to_node_with_base_uri(contract_id,qdate=None):
+    # That is, all paths from the start node to nodes with an URI which doesn't contain the string {parent}
+    today_num = qdate or get_today_num()
+    query = "MATCH p=allShortestPaths((x:CONTRACT{id:{pcontract_id}})-[*]->(n)) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) AND (exists(n.uri) AND NOT n.uri = '' AND NOT n.uri =~ {parentpat})  RETURN p"
+    pars = {"pcontract_id": contract_id, "pdate": today_num, 'parentpat': '.*parent.*'}
+    data = run_query(query=query, pars=pars)
+    if len(data) == 0:
+        return 0,[]
+    return data[0]['p'].start.id, data
+
+
+
+
 def get_contract_capacity(contract_id,qdate=None):
     id, paths = get_unbroken_paths_to_nodes(contract_id, qdate=qdate)
     tree = get_tree_from_paths(paths)
@@ -490,7 +537,7 @@ def get_contract_capacity(contract_id,qdate=None):
 # Consultas
 def get_hpc_contract_credits(contract_id,qdate=None):
     id, paths = get_unbroken_paths_to_nodes(contract_id, qdate=qdate)
-    if paths == []:
+    if not paths:
         c = 0
     else:
         tree = get_tree_from_paths(paths)

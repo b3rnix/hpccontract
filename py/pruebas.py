@@ -104,9 +104,13 @@ from api import *
 
 
 
-from mako.template import Template
-mytemplate = Template(filename='./templates/assign_slurm_credits_all_contracts.txt')
-data = get_credits_for_all_hpc_contracts(day_multiplier=30)
-print(mytemplate.render( cluster='neurus', contracts=data))
+#from mako.template import Template
+#mytemplate = Template(filename='./templates/assign_slurm_credits_all_contracts.txt')
+#data = get_credits_for_all_hpc_contracts(day_multiplier=30)
+#print(mytemplate.render( cluster='neurus', contracts=data))
 
-pass
+#pass
+
+#MATCH p=(x:CONTRACT{id:{pcontract_id}})-[*]->(n) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) AND (exists(n.uri) AND NOT n.uri =~ '.*\{parent\}.*')  RETURN p
+
+get_auto_uri("nas_neurus_gerencia1_grupoa")
