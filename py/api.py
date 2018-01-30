@@ -411,7 +411,7 @@ def create_cluster_user(cluster, user_id, email, start_date=None, end_date=None,
 
 
 
-#Creates a USES relationship so source gives resources to dst_contract.   (destination_contract)-[USES]->(origin_contract)
+#Creates a USES relationship so that source contract gives resources to dst_contract.   (destination_contract)-[USES]->(origin_contract)
 def link_contracts_by_use(resource_contract_id, consumer_contract_id, share="100%", start_date=None, end_date=None, active=True):
     get_contract(resource_contract_id)
     get_contract(consumer_contract_id)
@@ -419,7 +419,7 @@ def link_contracts_by_use(resource_contract_id, consumer_contract_id, share="100
                                       start_date=start_date, end_date=end_date, active=active)
 
 
-    if not share is None:
+    if share is not None:
         parse_share(share)
 
     run_query(
@@ -611,10 +611,10 @@ def get_today_num():
 def get_contracts_uri_for_nodes(cluster, node_id=None, qdate=None):
     today_num = qdate or get_today_num()
     if not node_id is None:
-        query = "MATCH p=(n:{id:{pnode_id},cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
+        query = "MATCH p=(n{id:{pnode_id},cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
         params = {'pnode_id': node_id}
     else:
-        query = "MATCH p=(n:{cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
+        query = "MATCH p=(n{cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
         params = {}
 
     params['pcluster'] = cluster
