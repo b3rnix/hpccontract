@@ -608,17 +608,25 @@ def get_today_num():
     return today_num
 
 
-def get_contracts_uri_for_nodes(cluster, node_id=None, qdate=None):
-    today_num = qdate or get_today_num()
-    if not node_id is None:
-        query = "MATCH p=(n{id:{pnode_id},cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
-        params = {'pnode_id': node_id}
-    else:
-        query = "MATCH p=(n{cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > 20180101) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= 20180101) AND (NOT exists(n.end_date) OR n.end_date > 20180101) )) RETURN n.id,x.uri"
-        params = {}
+def get_contracts_uri_for_nodes(cluster, node_id=None, qdate=None, state="ACTIVE"):
+    queries = {
+        'ACTIVE':'MATCH p=(n{cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE ({pnode_id} IS NULL OR n.id = {pnode_id}) AND (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) AND (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) )) RETURN n.id,x.uri',
+        'INACTIVE': 'MATCH p=(n{cluster:{pcluster}})<-[*]-(x:CONTRACT:HPC) WHERE ({pnode_id} IS NULL OR n.id = {pnode_id}) AND (NOT (all(r in relationships(p) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND r.active)) OR NOT (all(n in nodes(p) WHERE (NOT exists(n.start_date) OR n.start_date <= {pdate}) AND (NOT exists(n.end_date) OR n.end_date > {pdate}) ))) RETURN n.id,x.uri'
+    }
 
-    params['pcluster'] = cluster
-    params['pdate'] = today_num
+    state = state.upper()
+
+    if state not in queries.keys():
+        raise Exception("Invalid STATE: {0}".format(state))
+
+    today_num = qdate or get_today_num()
+    query = queries[state]
+    params = {
+        'pnode_id' : node_id,
+        'pcluster' : cluster,
+        'pdate' : today_num
+    }
+
     data = run_query(query, params)
 
     ret = {}
@@ -654,7 +662,7 @@ def get_slurm_partition_users(partition,qdate=None):
     return [{'user': d['u'].properties, 'relation': d['r'].properties} for d in data]
 
 
-#Rule: When a User as link to a NAS contract, then It will have R/W access to the resource pointed to that contract's
+#Rule: When a User is linked to a NAS contract, then It will have R/W access to the resource pointed to that contract's
 # URI. Access is granted by adding a given user to a group, whose name is determined as a function of the URI.
 def get_nas_contract_group_name(contract):
     return "nas_grp_" + str(contract.id)
