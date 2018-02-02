@@ -1,0 +1,8 @@
+#0) Validar contrato
+#1) Crear particion del contrato (si no existe)
+#2) Asignar nodos a particion del contrato
+
+# Si el contrato es terminal (posee cuenta)
+#3) Crear cuenta bancaria del contrato
+#4) Asignar particion a cuenta bancaria del contrato
+#5) Asignar usuarios a cuenta bancaria del contrato
