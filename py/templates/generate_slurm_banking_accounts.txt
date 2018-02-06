@@ -1,0 +1,23 @@
+%for c in data.keys():
+    %for a in data[c]['ACTIVE'].keys():
+        IF $(sacctmgr -n list accounts | grep ${a} | wc -l) EQ 0
+        sbank project create -c ${c} -a ${a.upper()}
+        FI
+
+        %for u in data[c]['ACTIVE'][a]['ACTIVE']:
+        sacctmgr add user ${u} Account=${a.upper()}
+        %endfor
+        %for u in data[c]['ACTIVE'][a]['INACTIVE']:
+        sacctmgr delete user ${u} Account=${a.upper()}
+        %endfor
+    %endfor
+
+
+    %for a in data[c]['INACTIVE'].keys():
+        IF $(sacctmgr -n list accounts | grep ${a} | wc -l) EQ 0
+        sbank project delete -c ${c} -a ${a.upper()}
+        FI
+    %endfor
+
+
+%endfor

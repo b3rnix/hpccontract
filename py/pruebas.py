@@ -134,10 +134,12 @@ from api import *
 #print get_contracts_uri_for_nodes("neurus", node_id="compute-1-1")
 
 # Contratos HPC todos los nodos
-print get_contracts_uri_for_nodes("neurus", node_id=None,state='CURRENT',qdate=20190101)
+#print get_contracts_uri_for_nodes("neurus", node_id=None,state='CURRENT',qdate=20190101)
 
 #########################################################################################################################
 #Listado de todos los contratos
 #print get_contracts_list(contract_type="HPC")
+
+print get_contract_users(contract_id='leecher', state='ACTIVE')
 
 

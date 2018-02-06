@@ -1,0 +1,15 @@
+#1) Determinar particiones HPC activas
+#2) Para todas las particiones HPC, que cuentas las acceden
+#3) Para todas las particiones HPC, que prioridad (esto hay que ver como se instrumenta)
+
+#PartitionName=BANCARIZADA DEFAULT=NO STATE=UP AllowAccounts=of2,of3,of7 Priority=10000
+
+%for x in data.keys():
+---------------------------------------------------------------------------------------
+Partition file for cluster ${x.upper()}
+---------------------------------------------------------------------------------------
+%for p in data[x].keys():
+PartitionName=${p.upper()} DEFAULT=NO STATE=UP AllowAccounts=${','.join(data[x][p])}
+%endfor
+
+%endfor

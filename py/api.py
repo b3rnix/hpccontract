@@ -548,7 +548,21 @@ def get_hpc_contract_credits(contract_id,qdate=None):
 
     return {'credits': c}
 
-def get_contracts_list(contract_type=None, qdate=None):
+def get_contract_users(contract_id, qdate=None, state = 'ACTIVE'):
+    today_num = qdate or get_today_num()
+    queries = {
+        'ACTIVE': "MATCH (u:CLUSTERUSER)-[r:USES]->(:CONTRACT{id:{pcontract_id}}) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) RETURN u",
+        'INACTIVE': "MATCH (u:CLUSTERUSER)-[r:USES]->(:CONTRACT{id:{pcontract_id}}) WHERE (exists(r.start_date) AND r.start_date > {pdate}) OR (exists(r.end_date) AND r.end_date <= {pdate}) OR (exists(r.active) AND NOT r.active) RETURN u",
+    }
+
+    query = queries[state]
+    pars = {"pdate": today_num, "pcontract_id": contract_id}
+    data = run_query(query=query, pars=pars)
+    return [d['u'].properties for d in data]
+
+
+
+def get_contracts_list(contract_type=None, qdate=None, state='ACTIVE'):
     today_num = qdate or get_today_num()
 
     type_prefix = ""
@@ -556,7 +570,13 @@ def get_contracts_list(contract_type=None, qdate=None):
         type_prefix = ":" + str.upper(contract_type)
 
 
-    query = "MATCH (c:CONTRACT" + type_prefix +  ") WHERE (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c"
+    queries = {
+        'ACTIVE': "MATCH (c:CONTRACT" + type_prefix +  ") WHERE (NOT exists(c.start_date) OR c.start_date <= {pdate}) AND (NOT exists(c.end_date) OR c.end_date > {pdate}) AND (NOT exists(c.active) OR c.active)  RETURN c",
+        'INACTIVE': "MATCH (c:CONTRACT" + type_prefix + ") WHERE (exists(c.start_date) AND c.start_date > {pdate}) OR (exists(c.end_date) AND c.end_date <= {pdate}) OR (exists(c.active) AND NOT c.active)  RETURN c",
+    }
+
+    query = queries[state]
+
     pars = {"pdate": today_num}
 
     data = run_query(query=query,pars=pars)
@@ -658,6 +678,13 @@ def get_slurm_partition_users(partition,qdate=None):
     today_num = qdate or get_today_num()
     query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:HPC:CONTRACT) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) AND (c.uri =~ {puripat}) RETURN u,c,r"
     pars = {'pdate':today_num,'puripat': '.*/p:' + partition + '.*'}
+    data = run_query(query,pars)
+    return [{'user': d['u'].properties, 'relation': d['r'].properties} for d in data]
+
+def get_slurm_account_users(account,qdate=None):
+    today_num = qdate or get_today_num()
+    query = "MATCH (u:CLUSTERUSER)-[r:USES]->(c:HPC:CONTRACT) WHERE (NOT exists(r.start_date) OR r.start_date <= {pdate}) AND (NOT exists(r.end_date) OR r.end_date > {pdate}) AND (NOT exists(r.active) OR r.active) AND (c.uri =~ {puripat}) RETURN u,c,r"
+    pars = {'pdate':today_num,'puripat': '.*/a:' + account + '.*'}
     data = run_query(query,pars)
     return [{'user': d['u'].properties, 'relation': d['r'].properties} for d in data]
 
