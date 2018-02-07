@@ -1,0 +1,3 @@
+%for n in data['partitions'].keys():
+    rocks add host attr ${n} slurm_partitions value = '|${"|".join(data['partitions'][n])}|'
+%endfor

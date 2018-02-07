@@ -27,14 +27,18 @@ def get_slurm_data_from_uri(uri):
     }
 
 
+
+
 def get_auto_uri(contract_id, qdate=None):
+
     # Strcuture: (ANASNODE)->(GENERIC CONTRACT)->(VOLUMES)*->(SUBDIR*)->(SUBDIR*)....
     # 1) Determine the (only) path from the contract to a unique NAS
 
     #contract = get_contract(contract_id)
     uri = "{parent}"
-    if not uri.count("parent"):
-        return uri
+    #if not uri.count("parent"):
+    #    return uri
+
 
     paths = get_unbroken_paths_to_node_with_base_uri(contract_id,qdate=qdate)[1]
 
@@ -51,6 +55,7 @@ def get_auto_uri(contract_id, qdate=None):
         if 'uri' in path.nodes[i].properties:
             if len(path.nodes[i].properties['uri']) > 0:
                 uri = uri.replace("{parent}", path.nodes[i].properties['uri'])
+            uri = uri.replace("{parentid}", path.nodes[i].properties['id'])
 
     return uri
 
