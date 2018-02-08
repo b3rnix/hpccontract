@@ -1,3 +1,9 @@
-%for n in data['partitions'].keys():
-    rocks add host attr ${n} slurm_partitions value = '|${"|".join(data['partitions'][n])}|'
+# Added Hosts
+%for n in data['partitions']['ACTIVE'].keys():
+    rocks add host attr ${n} slurm_partitions value = '|${"|".join(data['partitions']['ACTIVE'][n])}|'
+%endfor
+
+# Removed Hosts
+%for n in data['partitions']['INACTIVE'].keys():
+    rocks delete host attr ${n} slurm_partitions value = '|${"|".join(data['partitions']['INACTIVE'][n])}|'
 %endfor

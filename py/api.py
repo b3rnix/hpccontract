@@ -665,8 +665,8 @@ def get_contracts_uri_for_nodes(cluster, node_id=None, qdate=None, state="ACTIVE
 
     return ret
 
-def get_hpc_partitions_for_nodes(cluster, node_id=None):
-    uris = get_contracts_uri_for_nodes(cluster, node_id)
+def get_hpc_partitions_for_nodes(cluster, node_id=None, state='ACTIVE'):
+    uris = get_contracts_uri_for_nodes(cluster, node_id, state=state)
 
     partitions = {}
 

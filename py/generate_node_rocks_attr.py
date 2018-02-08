@@ -4,7 +4,9 @@ from py.templateHelper import run_template
 
 def get_data():
 
-    parts = get_hpc_partitions_for_nodes(cluster='neurus')
+    parts = {'ACTIVE': get_hpc_partitions_for_nodes(cluster='neurus',state='ACTIVE'),
+             'INACTIVE': get_hpc_partitions_for_nodes(cluster='neurus', state='INACTIVE')
+             }
     return {
 
         'partitions': parts
